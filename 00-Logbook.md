@@ -2085,5 +2085,13 @@ git push --set-upstream origin feature/ecr-repository
 Remark
 - branch 'feature/ecr-repository' set up to track 'origin/feature/ecr-repository'.
 
+# Checkpoint
+Date: 2026-09-14
+Time: 0043
 
-
+- [x] branch untuk terraform
+- [x] Cipta file ecr.tf
+- [x] code the ecr.
+- [x] terraform apply
+- [x] verify at AWS cli
+- [x] git commit
