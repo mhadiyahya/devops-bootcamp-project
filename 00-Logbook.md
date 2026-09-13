@@ -1919,3 +1919,33 @@ git push -u origin feature/docker-application
 ```
 
 Gabung kan PR.
+
+# tf file missing from terraform folder
+Move folder terraform dari /home/hadi ke /home/hadi/devops-bootcamp-project  
+Rename pula lagi sekali. GG!
+
+```bash
+cd /home/hadi/devops-bootcamp-project 
+pwd 
+git branch --show-current 
+git status --short --untracked-files=all /home/hadi/devops-bootcamp-project main 
+M 00-Logbook.md
+
+rg --files -g '*.tf'
+git ls-files | rg '\.tf$'
+git fetch origin git ls-tree -r --name-only origin/main | rg '\.tf$' 
+
+git fetch origin git ls-tree -r --name-only origin/main | rg '\.tf$'
+
+git log --all --name-status -- '*.tf' commit 51a1cc976fdb06809e8791877167c4c866fab411 (origin/feature/ecr-repository, feature/ecr-repository) 
+
+Author: Hadi <hadi@localhost.local> Date: Mon Sep 14 00:53:56 2026 +0800 
+Add private ECR Terraform configuration 
+A terraform/backend.tf 
+A terraform/compute.tf A terraform/erc.tf 
+A terraform/iam.tf A terraform/network.tf 
+A terraform/provider.tf 
+A terraform/security.tf 
+
+rg --files \ --hidden \ --no-ignore \ /home/hadi \ -g '*.tf' \ -g '!**/.terraform/**' \ 2>/dev/null
+```
