@@ -1329,3 +1329,163 @@ ansible all -m ansible.builtin.ping
 Remark:
 - "ping": "pong"
 
+### Controller git checkpoint
+cd ~/devops-bootcamp-project  
+git switch -c feature/ansible-controller  
+git add \
+  .gitignore \
+  ansible/ansible.cfg \
+  ansible/inventory/hosts.ini \
+  ansible/requirements.yml \
+  ansible/roles/.gitkeep
+
+git status --short  
+git diff --cached --stat  
+git diff --cached  
+
+Remark:
+- Pastikan tiada:
+    - private SSH key;
+    - AWS credentials;
+    - token;
+    - Terraform state;
+    - downloaded role source.
+
+git config user.name ""
+git config user.email ""
+
+# Bina dan Validate Docker Playbook
+
+## Checking docker version
+ansible all \
+  -m ansible.builtin.command \
+  -a "docker --version"
+
+Remark:
+- patut failed/error sebab docker belum install.
+
+## Cipta Playbook
+nano playbooks/install-docker.yml
+
+---
+- name: Install Docker on managed nodes
+  hosts: managed_nodes
+  become: true
+
+  vars:
+    docker_edition: ce
+    docker_install_compose_plugin: true
+    docker_users:
+      - ubuntu
+
+  roles:
+    - role: geerlingguy.docker
+
+## Syntax check
+ansible-playbook \
+  playbooks/install-docker.yml \
+  --syntax-check
+
+Remark:
+- playbook: playbooks/install-docker.yml
+
+## Semak target playbook
+ansible-playbook \
+  playbooks/install-docker.yml \
+  --list-hosts
+
+Remark:
+hosts (2):
+  web01
+  monitoring01
+
+## Check mode
+ansible-playbook \
+  playbooks/install-docker.yml \
+  --check \
+  --diff
+
+Remark:
+- monitoring01               : ok=13   changed=2    unreachable=0    failed=1    skipped=10   rescued=0    ignored=3   
+- web01                      : ok=13   changed=2    unreachable=0    failed=1    skipped=10   rescued=0    ignored=3
+
+## Install docker di web01 (web server)
+ansible-playbook \
+  playbooks/install-docker.yml \
+  --limit web01 \
+  --diff
+
+Remark:
+- web01                      : ok=18   changed=5    unreachable=0    failed=0    skipped=10   rescued=0    ignored=0   
+
+verify version
+ansible web01 \
+  -m ansible.builtin.command \
+  -a "docker --version"
+
+Remark:
+- Docker version 29.8.0, build 88096ef
+
+ansible web01 \
+  -m ansible.builtin.command \
+  -a "docker compose version"
+
+Remark:
+- Docker Compose version v5.5.1
+
+ansible web01 \
+  -m ansible.builtin.command \
+  -a "systemctl is-active docker"
+
+Remark:
+- active
+
+ansible web01 \
+  -m ansible.builtin.command \
+  -a "systemctl is-enabled docker"
+
+Remark:
+- enabled
+
+ansible web01 \
+  -m ansible.builtin.command \
+  -a "docker ps"
+
+Remark:
+- CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+
+## Install docker di monitoring01 (monitoring)
+cd ~/devops-bootcamp-project/ansible
+ansible-playbook \
+  playbooks/install-docker.yml \
+  --limit monitoring01 \
+  --diff
+
+Remark:
+- monitoring01               : ok=18   changed=5    unreachable=0    failed=0    skipped=10   rescued=0    ignored=0
+
+## Final test kedua-dua host
+ansible-playbook playbooks/install-docker.yml
+
+Remark:
+- monitoring01               : ok=13   changed=0    unreachable=0    failed=0    skipped=12   rescued=0    ignored=0   
+- web01                      : ok=13   changed=0    unreachable=0    failed=0    skipped=12   rescued=0    ignored=0
+
+## Git checkpoint
+cd ~/devops-bootcamp-project  
+git status --short --untracked-files=all  
+git add ansible/playbooks/install-docker.yml  
+git diff --cached  
+git commit -m "feat(ansible): install Docker on managed nodes"  
+git push  
+git status  
+
+# Checkpoint
+Date: 2026-09-13
+Time: 21:09
+
+- [x] Ansible setup di controller
+- [x] Ansible boleh access the web server and monitoring
+- [x] Buat playbook
+- [x] Install docker di web server (web01) and monitoring (monitoring01)
+
