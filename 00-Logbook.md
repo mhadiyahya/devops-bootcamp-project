@@ -878,5 +878,43 @@ Remark:
 | :-- | :-- | :-- |
 | devops-bootcamp-project/terraform.tfstate | 2026-09-13T09:05:55+00:00 | 56066 |
 
-## Block Backend
+## Exclude certain Terraform file from git tracking
+git ls-files | rg '(^|/)\.terraform/|\.tfstate|\.tfplan$|\.tfvars|\.pem$|\.key$'\
+jika ada result\
+tembah ini kedalam .gitignore\
+.terraform/\
+*.tfstate\
+*.tfstate.*
 
+keluarkan dari git tracking\
+git rm -r --cached .terraform\
+git rm --cached terraform.tfstate terraform.tfstate.backup
+
+verify lagi sekali\
+git status --short
+
+## Optional - delete wrong bucket name during S3 bucket creation
+aws s3api list-objects-v2 \
+  --bucket devops-bootcamp-terraform-hadi-yahya \
+  --output json
+
+aws s3api list-object-versions \
+  --bucket devops-bootcamp-terraform-hadi-yahya \
+  --output json
+
+aws s3api delete-bucket \
+  --bucket devops-bootcamp-terraform-hadi-yahya \
+  --region ap-southeast-1
+
+aws s3api list-buckets \
+  --query "Buckets[?Name=='devops-bootcamp-terraform-hadi-yahya'].Name" \
+  --output text
+
+# Checklist
+Date: 2026-09-13
+Time: 1734
+
+- [x] Prep S3 Bucket and Block bucket from public access
+- [x] Pre-migration check
+- [x] Migrate
+- [x] Post migrate check
