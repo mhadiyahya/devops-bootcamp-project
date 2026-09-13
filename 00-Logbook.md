@@ -650,13 +650,13 @@ aws ssm describe-instance-information \
 
 # Instance Access using SSM
 Web-Server
-(doc/images/devops-web-server.png)
+![Web Server](doc/images/devops-web-server.png)
 
 Controller
-(doc/images/devops-controller.png)
+![Controller](doc/images/devops-controller.png)
 
 Monitoring
-(doc/images/devops-monitoring.png)
+![Monitoring](doc/images/devops-monitoring.png)
 
 # Checklist
 Date: 2026-09-13
