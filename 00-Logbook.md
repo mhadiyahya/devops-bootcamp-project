@@ -1329,3 +1329,593 @@ ansible all -m ansible.builtin.ping
 Remark:
 - "ping": "pong"
 
+### Controller git checkpoint
+cd ~/devops-bootcamp-project  
+git switch -c feature/ansible-controller  
+git add \
+  .gitignore \
+  ansible/ansible.cfg \
+  ansible/inventory/hosts.ini \
+  ansible/requirements.yml \
+  ansible/roles/.gitkeep
+
+git status --short  
+git diff --cached --stat  
+git diff --cached  
+
+Remark:
+- Pastikan tiada:
+    - private SSH key;
+    - AWS credentials;
+    - token;
+    - Terraform state;
+    - downloaded role source.
+
+git config user.name ""
+git config user.email ""
+
+# Bina dan Validate Docker Playbook
+
+## Checking docker version
+ansible all \
+  -m ansible.builtin.command \
+  -a "docker --version"
+
+Remark:
+- patut failed/error sebab docker belum install.
+
+## Cipta Playbook
+nano playbooks/install-docker.yml
+
+---
+- name: Install Docker on managed nodes
+  hosts: managed_nodes
+  become: true
+
+  vars:
+    docker_edition: ce
+    docker_install_compose_plugin: true
+    docker_users:
+      - ubuntu
+
+  roles:
+    - role: geerlingguy.docker
+
+## Syntax check
+ansible-playbook \
+  playbooks/install-docker.yml \
+  --syntax-check
+
+Remark:
+- playbook: playbooks/install-docker.yml
+
+## Semak target playbook
+ansible-playbook \
+  playbooks/install-docker.yml \
+  --list-hosts
+
+Remark:
+hosts (2):
+  web01
+  monitoring01
+
+## Check mode
+ansible-playbook \
+  playbooks/install-docker.yml \
+  --check \
+  --diff
+
+Remark:
+- monitoring01               : ok=13   changed=2    unreachable=0    failed=1    skipped=10   rescued=0    ignored=3   
+- web01                      : ok=13   changed=2    unreachable=0    failed=1    skipped=10   rescued=0    ignored=3
+
+## Install docker di web01 (web server)
+ansible-playbook \
+  playbooks/install-docker.yml \
+  --limit web01 \
+  --diff
+
+Remark:
+- web01                      : ok=18   changed=5    unreachable=0    failed=0    skipped=10   rescued=0    ignored=0   
+
+verify version
+ansible web01 \
+  -m ansible.builtin.command \
+  -a "docker --version"
+
+Remark:
+- Docker version 29.8.0, build 88096ef
+
+ansible web01 \
+  -m ansible.builtin.command \
+  -a "docker compose version"
+
+Remark:
+- Docker Compose version v5.5.1
+
+ansible web01 \
+  -m ansible.builtin.command \
+  -a "systemctl is-active docker"
+
+Remark:
+- active
+
+ansible web01 \
+  -m ansible.builtin.command \
+  -a "systemctl is-enabled docker"
+
+Remark:
+- enabled
+
+ansible web01 \
+  -m ansible.builtin.command \
+  -a "docker ps"
+
+Remark:
+- CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+
+## Install docker di monitoring01 (monitoring)
+cd ~/devops-bootcamp-project/ansible
+ansible-playbook \
+  playbooks/install-docker.yml \
+  --limit monitoring01 \
+  --diff
+
+Remark:
+- monitoring01               : ok=18   changed=5    unreachable=0    failed=0    skipped=10   rescued=0    ignored=0
+
+## Final test kedua-dua host
+ansible-playbook playbooks/install-docker.yml
+
+Remark:
+- monitoring01               : ok=13   changed=0    unreachable=0    failed=0    skipped=12   rescued=0    ignored=0   
+- web01                      : ok=13   changed=0    unreachable=0    failed=0    skipped=12   rescued=0    ignored=0
+
+## Git checkpoint
+cd ~/devops-bootcamp-project  
+git status --short --untracked-files=all  
+git add ansible/playbooks/install-docker.yml  
+git diff --cached  
+git commit -m "feat(ansible): install Docker on managed nodes"  
+git push  
+git status  
+
+# Checkpoint
+Date: 2026-09-13
+Time: 21:09
+
+- [x] Ansible setup di controller
+- [x] Ansible boleh access the web server and monitoring
+- [x] Buat playbook
+- [x] Install docker di web server (web01) and monitoring (monitoring01)
+
+# Infratify/ship
+mkdir -p ~/source
+git clone \
+  https://github.com/Infratify/ship.git \
+  ~/source/infratify-ship
+
+cd ~/source/infratify-ship
+
+git remote -v
+git branch --show-current
+git log -1 --oneline
+git status
+
+Remark:
+- On branch main
+- Your branch is up to date with 'origin/main'.
+- nothing to commit, working tree clean
+
+## Inspect source file
+list senarai file\
+rg --files
+
+semak scripts\
+sed -n '1,160p' package.json
+
+semak customization\
+sed -n '1,120p' ship.config.json
+
+semak pre-flight test\
+sed -n '1,220p' scripts/preflight.mjs
+
+semak build configuration\
+sed -n '1,180p' vite.config.js
+
+semak size source\
+du -sh .
+
+semak node wujud atau tidak\
+command -v node || echo "Node is not installed on Controller"
+
+## Planning build
+```mermaid
+flowchart TD
+    A[package.json + package-lock.json] --> B[npm ci]
+    B --> C[npm test]
+    C --> D[npm run build]
+    D --> E[dist/]
+    E --> F[Nginx servers: 80]
+```
+## Import source ke project
+buat branch baru\
+cd ~/devops-bootcamp-project
+
+git switch main  
+git pull --ff-only origin main  
+git switch -c feature/docker-application
+
+Remark:
+- Switched to a new branch 'feature/docker-application'
+
+copy source\
+mkdir -p application/ship
+
+rsync -av \
+  --exclude='.git/' \
+  --exclude='node_modules/' \
+  --exclude='dist/' \
+  ~/source/infratify-ship/ \
+  application/ship/
+
+Remark:
+- sent 802,780 bytes  received 788 bytes  1,607,136.00 bytes/sec
+- total size is 799,764  speedup is 1.00
+
+simpan commit upstream sebagai rekod provenance\
+git -C ~/source/infratify-ship rev-parse HEAD \
+  > application/ship/UPSTREAM_COMMIT
+
+verify hasil copy\
+cd ~/devops-bootcamp-project
+
+test ! -d application/ship/.git \
+  && echo "PASS: nested .git excluded" \
+  || echo "FAIL: nested .git exists"
+
+test -f application/ship/package-lock.json \
+  && echo "PASS: package-lock.json copied"
+
+test -f application/ship/UPSTREAM_COMMIT \
+  && echo "PASS: upstream commit recorded"
+
+cat application/ship/UPSTREAM_COMMIT
+
+git status --short
+
+Remark:
+- PASS: nested .git excluded
+- PASS: package-lock.json copied
+- PASS: upstream commit recorded
+- b7943d6f76ff390641b84000331a6b8b0c35335f
+- ?? application/
+
+# Checkpoint
+Date: 2026-09-13
+Time: 
+
+- [x] Clone Intratify/ship
+- [x] Inspect file
+- [x] Branch baru nama feature/docker-application
+- [x] Copy clone Intratify/ship kepada application/ship
+
+# Customize Ship for DevOps Project
+
+## ship.config.json
+cd ~/devops-bootcamp-project
+
+git branch --show-current
+test -f application/ship/package.json \
+  && echo "PASS: application source exists"
+
+Remark:
+- PASS: application source exists
+
+git branch --show-current
+
+Remark:
+- feature/docker-application
+
+nano application/ship/ship.config.json
+
+{
+  "shipName": "Hadi Yahya Lab",
+  "color": "#FFD700",
+  "shipModel": "fighter",
+  "emblem": "comet"
+}
+
+Verify\
+python3 -m json.tool application/ship/ship.config.json
+{
+    "shipName": "Hadi Yahya Lab",
+    "color": "#FFD700",
+    "shipModel": "fighter",
+    "emblem": "comet"
+}
+
+## Cipta Docker ignore
+nano application/ship/.dockerignore
+
+.git
+.gitignore
+
+node_modules
+dist
+coverage
+
+.env
+.env.*
+
+*.log
+.DS_Store
+
+Verify\
+sed -n '1,120p' application/ship/.dockerignore
+.git
+.gitignore
+
+node_modules
+dist
+coverage
+
+.env
+.env.*
+
+*.log
+.DS_Store
+
+## Fahami multi-stage build
+| Stage | Base image | Tujuan |
+| :-- | :-- | :-- |
+| builder | node:22-alpine | Install dependency, test and build aplikasi |
+| runtime | nginx:stable-alpine | Serve static files daripada dist/ pada port 80 |
+
+Aliran
+```mermaid
+flowchart TD
+    A[Source code] --> B[npm ci]
+    B --> C[npm test]
+    C --> D[npm run build]
+    D --> E["/app/dist"]
+    E --> F[Copy ke Nginx image]
+    F --> G[HTTP port 80]
+```
+
+## Dockerfile multi-stage
+nano application/ship/Dockerfile
+
+```dockerfile
+# Stage 1: Build and test the Vite application
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+# Copy dependency manifests first to improve layer caching
+COPY package.json package-lock.json ./
+
+# Install exact dependency versions from package-lock.json
+RUN npm ci
+
+# Copy application source
+COPY . .
+
+# Validate ship.config.json
+RUN npm test
+
+# Produce static files in /app/dist
+RUN npm run build
+
+
+# Stage 2: Serve only the compiled static files
+FROM nginx:stable-alpine AS runtime
+
+COPY --from=builder /app/dist/ /usr/share/nginx/html/
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+Semak file dan status Git\\
+sed -n '1,220p' application/ship/Dockerfile
+
+git status --short
+
+Remark:
+- sed -n '1,220p' application/ship/Dockerfile
+
+git status --short
+
+## Manual build pada Web Server
+Copy file ship ke web server
+```bash
+rsync -av \
+  -e "ssh -i /home/ssm-user/.ssh/NAMA_KEY -o IdentitiesOnly=yes" \
+  ~/devops-bootcamp-project/application/ship/ \
+  ubuntu@10.0.0.5:/home/ubuntu/ship-build/
+```
+
+Verify salinan
+```bash
+ssh \
+  -i /home/ssm-user/.ssh/NAMA_KEY \
+  -o IdentitiesOnly=yes \
+  ubuntu@10.0.0.5 \
+  'cd ~/ship-build && ls -la && test -f Dockerfile && echo "PASS: Dockerfile copied"'
+```
+
+Remark:
+total 96
+drwxr-xr-x 5 ubuntu ubuntu  4096 Sep 13 15:06 .
+drwxr-x--- 6 ubuntu ubuntu  4096 Sep 13 15:23 ..
+-rw-r--r-- 1 ubuntu ubuntu    74 Sep 13 14:41 .dockerignore
+-rw-r--r-- 1 ubuntu ubuntu    48 Sep 13 14:09 .gitignore
+-rw-r--r-- 1 ubuntu ubuntu   424 Sep 13 14:09 CREDITS.md
+-rw-r--r-- 1 ubuntu ubuntu   583 Sep 13 15:06 Dockerfile
+-rw-r--r-- 1 ubuntu ubuntu  1559 Sep 13 14:09 README.md
+-rw-r--r-- 1 ubuntu ubuntu    41 Sep 13 14:26 UPSTREAM_COMMIT
+-rw-r--r-- 1 ubuntu ubuntu   303 Sep 13 14:09 index.html
+-rw-r--r-- 1 ubuntu ubuntu 34633 Sep 13 14:09 package-lock.json
+-rw-r--r-- 1 ubuntu ubuntu   508 Sep 13 14:09 package.json
+drwxr-xr-x 2 ubuntu ubuntu  4096 Sep 13 14:09 public
+drwxr-xr-x 3 ubuntu ubuntu  4096 Sep 13 14:09 scripts
+-rw-r--r-- 1 ubuntu ubuntu   104 Sep 13 14:40 ship.config.json
+drwxr-xr-x 2 ubuntu ubuntu  4096 Sep 13 14:09 src
+-rw-r--r-- 1 ubuntu ubuntu   767 Sep 13 14:09 vite.config.js
+PASS: Dockerfile copied
+
+Access ke web server
+```bash
+ssh ubuntu@10.0.0.5
+cd ~/ship-build
+```
+
+Check port 80 belum digunakan
+```bash
+sudo ss -lntp | rg ':80\b' \
+  || echo "PASS: port 80 available"
+```
+
+Remark:
+- PASS: port 80 available
+
+Build image
+```bash
+docker build \
+  --progress=plain \
+  --tag ship-app:local \
+  .
+```
+
+Test and Build
+```bash
+npm test
+npm install
+npm run build
+```
+
+Remark:
+- ✓ pre-flight OK — "Hadi Yahya Lab" cleared for launch
+- ✓ built in success.
+
+Periksa image
+```bash
+docker image ls ship-app:local
+```
+
+Remark:
+| IMAGE | ID | DISK USAGE | CONTENT SIZE | EXTRA |
+| :-- | :-- | :-- | :-- | :-- |
+| ship-app:local | 8c8b9dc28983 | 103MB | 29MB | 
+
+Jalankan container
+```bash
+docker run -d \
+  --name ship-local-test \
+  --publish 80:80 \
+  ship-app:local
+```
+
+Remark:
+- 21040ec88a2f2557398ba548dbe86d21bf37f262f032cf830eb77c66d71a011e
+
+Verify
+```bash
+docker ps --filter name=ship-local-test
+
+curl --fail --head http://127.0.0.1
+
+docker exec ship-local-test sh -c \
+  'command -v node || echo "PASS: Node.js absent from runtime image"'
+```
+
+Remark:
+- CONTAINER ID   IMAGE            COMMAND                  CREATED          STATUS          PORTS                                 NAMES
+- 21040ec88a2f   ship-app:local   "/docker-entrypoint.…"   53 seconds ago   Up 53 seconds   0.0.0.0:80->80/tcp, [::]:80->80/tcp   ship-local-test
+
+```text
+HTTP/1.1 200 OK
+Server: nginx/1.30.4
+Date: Sun, 13 Sep 2026 15:41:18 GMT
+Content-Type: text/html
+Content-Length: 404
+Last-Modified: Sun, 13 Sep 2026 15:32:51 GMT
+Connection: keep-alive
+ETag: "6aa6c223-194"
+Accept-Ranges: bytes
+```
+
+```text
+docker exec ship-local-test sh -c \
+  'command -v node || echo "PASS: Node.js absent from runtime image"'
+```
+
+Test di Controller terminal
+```bash
+curl --fail --head http://10.0.0.5
+```
+
+Remark
+```text
+HTTP/1.1 200 OK
+Server: nginx/1.30.4
+Date: Sun, 13 Sep 2026 15:42:42 GMT
+Content-Type: text/html
+Content-Length: 404
+Last-Modified: Sun, 13 Sep 2026 15:32:51 GMT
+Connection: keep-alive
+ETag: "6aa6c223-194"
+Accept-Ranges: bytes
+```
+
+> [!NOTE]
+> Semasa sesi manual build docker, kena install NPM. Pelan nak masukkan pemasangan npm ke Ansible untuk web dan monitoring. Tetapi tidak perlu kerana node dan npm sudah tersedia dalam builder container.
+
+Cubaan docker build tanpa cache
+```bash
+cd ~/ship-build
+
+docker build \
+  --no-cache \
+  --progress=plain \
+  --tag ship-app:verify \
+  .
+```
+
+List ship-app
+```bash
+docker image ls 'ship-app'
+```
+
+Remark:                                                                                     
+IMAGE             ID             DISK USAGE   CONTENT SIZE   EXTRA
+ship-app:local    8c8b9dc28983        103MB           29MB    U   
+ship-app:verify   ab1ac8f6900a        103MB           29MB        
+
+Remove ship-app:verify
+```bash
+docker image rm ship-app:verify
+```
+
+Setelah pengujian secara manual. proceed dengan commit.
+
+```bash
+cd ~/devops-bootcamp-project
+
+git status --short
+git diff -- application/ship/ship.config.json
+git diff -- application/ship/Dockerfile
+git diff -- application/ship/.dockerignore
+```
+
+```bash
+git add application/ship
+
+git commit -m "feat(docker): add multi-stage application image"
+
+git push -u origin feature/docker-application
+```
+
+Gabung kan PR.
