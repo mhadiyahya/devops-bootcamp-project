@@ -545,6 +545,8 @@ Remark:
 > Network setting dibawah tidak percuma di AWS. Sila buang/destroy selesai selesai testing.
 > 1. NAT Gateway
 > 2. Elastic IP
+> 3. EC2
+> 4. EBS
 
 ## Destory
 terraform plan -destroy\
