@@ -1120,4 +1120,212 @@ ssh \
   ubuntu@10.0.0.5
 
 > [!NOTE]
-> devops-bootcamp-terraform-mhadiyahya
+> devops-bootcamp-terraform-mhadiyahya move to devops-bootcamp-mhadiyahya dir
+
+## Inventory dan Ansible ping
+
+### Projek dir
+mkdir -p ~/devops-bootcamp-project/ansible
+mkdir -p ~/devops-bootcamp-project/ansible/inventory
+mkdir -p ~/devops-bootcamp-project/ansible/playbooks
+mkdir -p ~/devops-bootcamp-project/ansible/roles
+
+### ansible.cfg
+nano ansible.cfg\
+[defaults]
+inventory = ./inventory/hosts.ini
+remote_user = ubuntu
+private_key_file = ~/.ssh/ansible_ed25519
+host_key_checking = True
+retry_files_enabled = False
+roles_path = ./roles
+interpreter_python = auto_silent
+
+### inventory
+nano inventory/hosts.ini\
+[web_servers]
+web01 ansible_host=10.0.0.5
+
+[monitoring_servers]
+monitoring01 ansible_host=10.0.0.136
+
+[managed_nodes:children]
+web_servers
+monitoring_servers
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
+
+### Verify configuration
+pwd  
+/home/ssm-user/devops-bootcamp-project/ansible
+
+ansible --version  
+
+Remark:
+- look for config file = /home/ssm-user/devops-bootcamp-project/ansible/ansible.cfg
+
+ansible-config dump --only-changed
+
+Remark:
+- Pastikan inventory, remote user dan private key merujuk kepada nilai yang ditetapkan.
+- DEFAULT_PRIVATE_KEY_FILE(/home/ssm-user/devops-bootcamp-project/ansible/ansible.cfg) = /home/ssm-user/.ssh/ansible_ed25519
+- DEFAULT_REMOTE_USER(/home/ssm-user/devops-bootcamp-project/ansible/ansible.cfg) = ubuntu
+
+ansible-inventory --graph
+
+Remark
+- view struktur inventory
+
+### Ping test guna ansible
+ansible all -m ansible.builtin.ping
+
+Remark:
+web01 | SUCCESS => {
+    "changed": false,
+    "ping": "pong"
+}
+monitoring01 | SUCCESS => {
+    "changed": false,
+    "ping": "pong"
+}
+
+### verify hostname
+ansible all \
+  -m ansible.builtin.command \
+  -a "hostname"
+
+Remark:
+web01 | CHANGED | rc=0 >>
+ip-10-0-0-5
+monitoring01 | CHANGED | rc=0 >>
+ip-10-0-0-136
+
+### Verify privilege escalation
+ansible all \
+  --become \
+  -m ansible.builtin.command \
+  -a "whoami"
+
+Remark: 
+web01 | CHANGED | rc=0 >>
+root
+monitoring01 | CHANGED | rc=0 >>
+root
+
+## Backup Ansible file at Controller menggunakan git
+cd ~/devops-bootcamp-project
+git rev-parse --is-inside-work-tree
+git remote -v
+
+Remark:
+- fatal: not a git repository
+
+
+### Dapatkan repo projek
+git remote get-url origin (dekat laptop)
+
+GIT_TERMINAL_PROMPT=0 git ls-remote \
+  https://github.com/mhadiyahya/devops-bootcamp-project.git \
+  HEAD
+
+Remark:
+- <commit-hash>    HEAD 
+- Repo public
+
+### Pindahkan working folder semasa sebagai backup
+cd ~
+test -e ~/devops-bootcamp-project-controller-backup \
+  && echo "BACKUP PATH EXISTS" \
+  || echo "BACKUP PATH AVAILABLE"
+
+Remark:
+- BACKUP PATH AVAILABLE
+
+mv \
+  ~/devops-bootcamp-project \
+  ~/devops-bootcamp-project-controller-backup
+
+### Clone repo sebenar
+git clone \
+  https://github.com/mhadiyahya/devops-bootcamp-project.git \
+  ~/devops-bootcamp-project
+
+cd ~/devops-bootcamp-project  
+git remote -v  
+git branch --show-current  
+git status  
+
+Remark:
+- nothing to commit, working tree clean
+
+### Gabungkan ansible working files
+cd ~/devops-bootcamp-project  
+
+test -e ansible \
+  && echo "ANSIBLE DIRECTORY EXISTS" \
+  || echo "ANSIBLE DIRECTORY AVAILABLE"
+
+cp -a \
+  ~/devops-bootcamp-project-controller-backup/ansible \
+  ~/devops-bootcamp-project/
+
+git status --short
+
+Remark:
+- ?? ansible/
+
+cd ~/devops-bootcamp-project/ansible
+ansible-galaxy role info geerlingguy.docker
+
+### Requirement dan Install role
+cd ~/devops-bootcamp-project/ansible
+nano requirements.yml
+
+Remark:
+---
+roles:
+  - name: geerlingguy.docker
+    src: https://github.com/geerlingguy/ansible-role-docker.git
+    scm: git
+    version: 1d3968dbf0df48515ffda0f6561cbd25206f502a
+
+### Exclude download role daripada Git
+cd ~/devops-bootcamp-project
+nano .gitignore
+
+Remark
+# Ansible Galaxy downloaded roles
+ansible/roles/*
+!ansible/roles/.gitkeep
+
+# Ansible retry files
+*.retry
+
+Cipta placeholder supaya direktori reles/ wujud dalam Git
+touch ansible/roles/.gitkeep
+
+Install Role
+cd ~/devops-bootcamp-project/ansible
+ansible-galaxy role install \
+  --role-file requirements.yml \
+  --roles-path ./roles
+
+Remark:
+- geerlingguy.docker was installed successfully
+
+Verify role  
+ansible-galaxy role list
+
+Remark:
+- geerlingguy.docker
+
+git status --short
+
+regression test
+cd ~/devops-bootcamp-project/ansible
+ansible all -m ansible.builtin.ping
+
+Remark:
+- "ping": "pong"
+
