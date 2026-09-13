@@ -42,3 +42,10 @@ terraform.rc
 .idea/
 .DS_Store
 Thumbs.db
+
+# Ansible Galaxy downloaded roles
+ansible/roles/*
+!ansible/roles/.gitkeep
+
+# Ansible retry files
+*.retry
