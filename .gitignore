@@ -1,0 +1,12 @@
+.DS_Store          # macOS specific system files
+Thumbs.db          # Windows specific thumbnail caches
+.env               # Local environment variables containing API keys/passwords
+*.pem              # Private security keys
+node_modules/      # Node.js dependencies
+vendor/            # PHP Composer or Go dependencies
+.venv/             # Python virtual environments
+dist/              # Production build outputs
+build/             # Compiled application binaries
+out/               # General build compilation targets
+*.log              # Application log files
+npm-debug.log*     # Node package manager debug logs
