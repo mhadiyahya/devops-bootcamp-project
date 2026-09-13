@@ -658,6 +658,16 @@ Controller
 Monitoring
 ![Monitoring](doc/images/devops-monitoring.png)
 
+# Instance Ping Internet
+Web-Server
+![Web Server](doc/images/devops-web-server-ping-google.png)
+
+Controller
+![Controller](doc/images/devops-controller-ping-cloudflare.png)
+
+Monitoring
+![Monitoring](doc/images/devops-monitoring-ping-yahoo.png)
+
 # Checklist
 Date: 2026-09-13
 Time: 1540
