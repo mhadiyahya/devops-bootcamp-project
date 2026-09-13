@@ -40,3 +40,9 @@ resource "aws_iam_instance_profile" "ssm_profile" {
   name = "devops-ssm-instance-profile"
   role = aws_iam_role.ssm_role.name
 }
+
+# Allow EC2 instances to pull container images from private ECR
+resource "aws_iam_role_policy_attachment" "ecr_pull_only" {
+  role       = aws_iam_role.ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly"
+}
