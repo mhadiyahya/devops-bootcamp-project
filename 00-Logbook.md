@@ -1924,6 +1924,7 @@ Gabung kan PR.
 Move folder terraform dari /home/hadi ke /home/hadi/devops-bootcamp-project  
 Rename pula lagi sekali. GG!
 
+## Mencari tf file
 ```bash
 cd /home/hadi/devops-bootcamp-project 
 pwd 
@@ -1942,10 +1943,286 @@ git log --all --name-status -- '*.tf' commit 51a1cc976fdb06809e8791877167c4c866f
 Author: Hadi <hadi@localhost.local> Date: Mon Sep 14 00:53:56 2026 +0800 
 Add private ECR Terraform configuration 
 A terraform/backend.tf 
-A terraform/compute.tf A terraform/erc.tf 
-A terraform/iam.tf A terraform/network.tf 
+A terraform/compute.tf 
+A terraform/erc.tf 
+A terraform/iam.tf 
+A terraform/network.tf 
 A terraform/provider.tf 
 A terraform/security.tf 
 
 rg --files \ --hidden \ --no-ignore \ /home/hadi \ -g '*.tf' \ -g '!**/.terraform/**' \ 2>/dev/null
+```
+
+tf file ada cuma dalam directory origin/feature/ecr-repository  
+dan tak wujud dalam origin/main
+
+## Simpan perubabahn logbook semantara
+```bash
+cd /home/hadi/devops-bootcamp-project
+
+git stash push \
+  -m "WIP logbook before Terraform recovery" \
+  -- 00-Logbook.md
+```
+
+verify
+```bash
+git status --short
+git stash list
+```
+
+## Cipta recovery branch daripada main
+```bash
+git switch main
+git pull --ff-only origin main
+git switch -c fix/restore-terraform-source
+```
+
+Restore terraform code daripada commit
+```bash
+git restore \
+  --source=51a1cc976fdb06809e8791877167c4c866fab411 \
+  --worktree \
+  -- terraform/
+```
+
+## Betulkan type erc.tf kepada ecr.tf
+```bash
+mv terraform/erc.tf terraform/ecr.tf
+```
+
+verify
+```bash
+rg --files terraform -g '*.tf' | sort
+```
+
+Remark:
+- terraform/backend.tf
+- terraform/compute.tf
+- terraform/ecr.tf
+- terraform/iam.tf
+- terraform/network.tf
+- terraform/provider.tf
+- terraform/security.tf
+
+## Pindahkan local state backup keluar dari projek
+```bash
+mkdir -p /home/hadi/terraform-state-recovery-20260914
+
+mv -n \
+  terraform/terraform.tfstate \
+  terraform/terraform.tfstate.backup \
+  terraform/terraform.tfstate.pre-s3-migration.backup \
+  /home/hadi/terraform-state-recovery-20260914/
+
+ls -lh /home/hadi/terraform-state-recovery-20260914
+
+find terraform -maxdepth 1 -name 'terraform.tfstate*' -print
+```
+
+## verify backend sebelum init
+```bash
+sed -n '1,160p' terraform/backend.tf
+```
+
+Remark
+```text
+sed -n '1,160p' terraform/backend.tf
+terraform {
+  backend "s3" {
+    bucket       = "devops-bootcamp-terraform-mhadiyahya"
+    key          = "devops-bootcamp-project/terraform.tfstate"
+    region       = "ap-southeast-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+```
+
+## Sambungkan semula working dir kepada S3
+```bash
+cd /home/hadi/devops-bootcamp-project/terraform
+
+terraform init -reconfigure
+
+terraform state list
+```
+
+Remark
+```text
+aws_ecr_repository.application
+aws_instance.web_server
+aws_instance.controller
+aws_instance.monitoring
+```
+
+```bash
+terraform validate
+terraform plan
+```
+
+Remark
+- Success! The configuration is valid.
+- No changes. Your infrastructure matches the configuration.
+
+## Commit recovery
+```bash
+cd /home/hadi/devops-bootcamp-project
+
+git status --short --untracked-files=all
+```
+
+Remark
+```text
+?? terraform/.terraform.lock.hcl
+?? terraform/backend.tf
+?? terraform/compute.tf
+?? terraform/ecr.tf
+?? terraform/iam.tf
+?? terraform/network.tf
+?? terraform/provider.tf
+?? terraform/security.tf
+```
+
+stage hanya terraform source dan provider lock file
+```bash
+git add terraform/*.tf terraform/.terraform.lock.hcl
+git diff --cached --stat
+git diff --cached
+```
+
+commit dan pus
+```bash
+git commit -m "fix(terraform): restore infrastructure source files"
+
+git push --set-upstream origin fix/restore-terraform-source
+```
+
+Remark
+- branch 'fix/restore-terraform-source' set up to track 'origin/fix/restore-terraform-source'.
+
+Buka PR dan Merga
+
+Selepas merge
+```bash
+git switch main
+git pull --ff-only origin main
+
+rg --files terraform -g '*.tf' | sort
+```
+
+pulihkan logbook
+```bash
+git stash pop
+```
+
+# ECR
+```bash
+cd /home/hadi/devops-bootcamp-project/terraform
+
+terraform plan
+
+rg -n 'ContainerRegistryPullOnly|ecr_pull_only' iam.tf \
+  || echo "PASS: ECR pull policy not configured yet"
+```
+
+## branch ecr-pull-permission
+```bash
+cd /home/hadi/devops-bootcamp-project
+
+git status --short
+git switch main
+git pull --ff-only origin main
+git switch -c feature/ecr-pull-permission
+```
+
+Remark:
+- Switched to a new branch 'feature/ecr-pull-permission'
+
+## Tambah policy attachment
+```bash
+nano terraform/iam.tf
+```
+
+```hcl
+# Allow EC2 instances to pull container images from private ECR
+resource "aws_iam_role_policy_attachment" "ecr_pull_only" {
+  role       = aws_iam_role.ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly"
+}
+```
+
+## TF format, validate and plan
+```bash
+cd /home/hadi/devops-bootcamp-project/terraform
+
+terraform fmt
+terraform validate
+terraform plan -out=ecr-pull.tfplan
+```
+
+Remark
+- Plan: 1 to add, 0 to change, 0 to destroy.
+- Plan 1: aws_iam_role_policy_attachment.ecr_pull_only
+
+Apply dan verify
+```bash
+terraform apply ecr-pull.tfplan
+terraform plan
+```
+
+Remark:
+- No changes. Your infrastructure matches the configuration.
+
+Verify
+```bash
+terraform state show \
+  aws_iam_role_policy_attachment.ecr_pull_only
+```
+
+```bash
+aws iam list-attached-role-policies \
+  --role-name devops-ssm-role \
+  --query "AttachedPolicies[?PolicyName=='AmazonEC2ContainerRegistryPullOnly']" \
+  --output table
+```
+
+## Commit dan PR
+```bash
+cd /home/hadi/devops-bootcamp-project
+
+git status --short
+git diff -- terraform/iam.tf
+
+git add terraform/iam.tf
+git diff --cached
+
+git commit -m "feat(iam): allow EC2 to pull ECR images"
+
+git push --set-upstream origin feature/ecr-pull-permission
+```
+
+Remark
+- branch 'feature/ecr-pull-permission' set up to track 'origin/feature/ecr-pull-permission'.
+
+# Build private ECR
+```bash
+docker version
+aws sts get-caller-identity
+aws configure get region
+
+ECR_URI=$(terraform -chdir=terraform output -raw ecr_repository_url)
+ECR_REGISTRY="${ECR_URI%%/*}"
+APP_VERSION="v1.0.0"
+
+echo "Repository: $ECR_URI"
+echo "Registry:   $ECR_REGISTRY"
+echo "Version:    $APP_VERSION"
+
+docker build \
+  --platform linux/amd64 \
+  --pull \
+  --progress=plain \
+  --tag "ship-app:$APP_VERSION" \
+  ./application/ship
 ```
