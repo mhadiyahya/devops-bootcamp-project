@@ -1,12 +1,44 @@
-.DS_Store          # macOS specific system files
-Thumbs.db          # Windows specific thumbnail caches
-.env               # Local environment variables containing API keys/passwords
-*.pem              # Private security keys
-node_modules/      # Node.js dependencies
-vendor/            # PHP Composer or Go dependencies
-.venv/             # Python virtual environments
-dist/              # Production build outputs
-build/             # Compiled application binaries
-out/               # General build compilation targets
-*.log              # Application log files
-npm-debug.log*     # Node package manager debug logs
+# Terraform working directory
+.terraform/
+
+# Terraform state files
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Terraform plan files
+*.tfplan
+tfplan
+
+# Terraform crash logs
+crash.log
+crash.*.log
+
+# Terraform variable files — mungkin mengandungi secrets
+*.tfvars
+*.tfvars.json
+*.auto.tfvars
+*.auto.tfvars.json
+
+# Local override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform CLI configuration
+.terraformrc
+terraform.rc
+
+# Environment and credential files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

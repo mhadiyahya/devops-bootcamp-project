@@ -918,3 +918,206 @@ Time: 1734
 - [x] Pre-migration check
 - [x] Migrate
 - [x] Post migrate check
+
+---
+
+# Controller (Ansible)
+
+## Host check (Using AWS Console)
+bash\
+whoami\
+hostname\
+hostname -I\
+cat /etc/os-release\
+python3 --version\
+command -v python3\
+
+## Verify sudo
+sudo -n true\
+echo $?
+
+Remark:
+- Expected result = 0
+- SSM boleh menjalankan sudo.
+
+## Verify network and NAT Gateway
+ip -brief address\
+ip route\
+getent hosts pypi.org
+curl -I --max-time 10 https://pypi.org\
+curl -I --max-time 10 https://galaxy.ansible.com
+
+## Prep-Controller
+sudo apt update\
+sudo apt install -y pipx  
+pipx --version
+
+Remark:
+- pipx version is 1.4.3
+
+## Tambah lokasi aplikasi pipx kepada PATH
+pipx ensurepath
+
+Remark:
+- Success! Added /home/ssm-user/.local/bin to the PATH environment variable.
+- Consider adding shell completions for pipx. Run 'pipx completions' for instructions.
+- You will need to open a new terminal or re-login for the PATH changes to take effect
+
+reload shell dengan exit dan bash semula
+
+echo "$PATH"
+
+Remark:
+- /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/ssm-user/.local/bin
+
+## Install Ansible Core
+pipx install ansible-core==2.19.13
+
+Remark:
+- installed package ansible-core 2.19.13, installed using Python 3.12.3
+- These apps are now globally available
+    - ansible
+    - ansible-config
+    - ansible-console
+    - ansible-doc
+    - ansible-galaxy
+    - ansible-inventory
+    - ansible-playbook
+    - ansible-pull
+    - ansible-test
+    - ansible-vault
+
+## Verify installation
+command -v ansible
+
+Remark:
+- /home/ssm-user/.local/bin/ansible
+
+ansible --version
+
+Remark:
+- ansible [core 2.19.13]
+- python version = 3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0] (/home/ssm-user/.local/share/pipx/venvs/ansible-core/bin/python)
+- jinja version = 3.1.6
+- pyyaml version = 6.0.3 (with libyaml v0.2.5)
+
+ansible-playbook --version
+
+Remark:
+- ansible-playbook [core 2.19.13]
+- python version = 3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0] (/home/ssm-user/.local/share/pipx/venvs/ansible-core/bin/python)
+- jinja version = 3.1.6
+- pyyaml version = 6.0.3 (with libyaml v0.2.5)
+
+ansible-galaxy --version
+
+Remark:
+- ansible-galaxy [core 2.19.13]
+- python version = 3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0] (/home/ssm-user/.local/share/pipx/venvs/ansible-core/bin/python)
+- jinja version = 3.1.6
+- pyyaml version = 6.0.3 (with libyaml v0.2.5)
+
+pipx list
+
+Remark:
+- venvs are in /home/ssm-user/.local/share/pipx/venvs
+- apps are exposed on your $PATH at /home/ssm-user/.local/bin
+- manual pages are exposed at /home/ssm-user/.local/share/man
+- package ansible-core 2.19.13, installed using Python 3.12.3
+    - ansible
+    - ansible-config
+    - ansible-console
+    - ansible-doc
+    - ansible-galaxy
+    - ansible-inventory
+    - ansible-playbook
+    - ansible-pull
+    - ansible-test
+    - ansible-vault
+
+## Private SSH
+SSH ke Web Server dan Monitoring untuk Controller
+
+### Add ingress ke security.tf
+- Allow private SSH from Ansible Controller to Web Server
+
+resource "aws_vpc_security_group_ingress_rule" "public_ssh_from_controller" {
+  security_group_id = aws_security_group.public_sg.id
+
+  cidr_ipv4   = "10.0.0.135/32"
+  ip_protocol = "tcp"
+  from_port   = 22
+  to_port     = 22
+
+  description = "Allow SSH from Ansible Controller"
+}
+
+- Allow private SSH from Ansible Controller to Monitoring Server
+
+resource "aws_vpc_security_group_ingress_rule" "private_ssh_from_controller" {
+  security_group_id = aws_security_group.private_sg.id
+
+  cidr_ipv4   = "10.0.0.135/32"
+  ip_protocol = "tcp"
+  from_port   = 22
+  to_port     = 22
+
+  description = "Allow SSH from Ansible Controller"
+}
+
+terraform fmt  
+terraform validate  
+terraform plan
+
+Remark:
+- Plan: 2 to add, 0 to change, 0 to destroy.
+- aws_vpc_security_group_ingress_rule.private_ssh_from_controller will be created
+- aws_vpc_security_group_ingress_rule.public_ssh_from_controller will be created
+
+terraform apply
+
+### Testing
+telnet 10.0.0.5 22
+telnet 10.0.0.136 22
+
+## SSH Key Auth
+
+### Generate key pada Controller
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+
+Generate dedicated Ansible key  
+ssh-keygen \
+  -t ed25519 \
+  -a 100 \
+  -f ~/.ssh/ansible_ed25519 \
+  -C "ansible-controller@mhadiyahya" \
+  -N ""
+
+ls -l ~/.ssh/ansible_ed25519*
+
+cat ~/.ssh/ansible_ed25519.pub
+
+salin public key
+
+### Authorize key dekat web server & monitoring
+sudo install -d \
+  -m 700 \
+  -o ubuntu \
+  -g ubuntu \
+  /home/ubuntu/.ssh
+
+echo '<PUBLIC_KEY>' | \
+  sudo tee -a /home/ubuntu/.ssh/authorized_keys >/dev/null
+
+sudo chown ubuntu:ubuntu /home/ubuntu/.ssh/authorized_keys
+sudo chmod 600 /home/ubuntu/.ssh/authorized_keys
+
+### Test SSH
+ssh \
+  -i ~/.ssh/ansible_ed25519 \
+  -o IdentitiesOnly=yes \
+  ubuntu@10.0.0.5
+
+> [!NOTE]
+> devops-bootcamp-terraform-mhadiyahya
