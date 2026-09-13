@@ -1919,3 +1919,171 @@ git push -u origin feature/docker-application
 ```
 
 Gabung kan PR.
+
+# Checkpoint
+Date: 2026-09-14
+Time: 0008
+
+- [x] customize ship
+- [x] cipta docker ignore bagi ship
+- [x] fahami multi-stage build
+- [x] Dockerfile multi-stage
+- [x] Manual build pada web server
+- [x] Curl local dan remote berjaya
+
+# AWS ECR Repo
+
+## Branch Terraform
+
+Sediakan branch
+```bash
+cd ~/devops-bootcamp-project
+
+git switch main
+git pull --ff-only origin main
+git switch -c feature/ecr-repository
+```
+
+verify identiti
+```bash
+aws sts get-caller-identity
+aws configure get region
+```
+
+check backend
+```bash
+terraform init
+terraform plan
+```
+
+Remark
+```text
+No changes. Your infrastructure matches the configuration.
+```
+
+## Cipta ecr.tf
+```bash
+code ecr.tf
+```
+
+Remark
+```text
+resource "aws_ecr_repository" "application" {
+  name                 = "devops-bootcamp/final-project-mhadiyahya"
+  image_tag_mutability = "MUTABLE"
+  force_delete         = true
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
+
+  tags = {
+    Name    = "devops-bootcamp-final-project-mhadiyahya"
+    Project = "mhadiyahya"
+  }
+}
+
+output "ecr_repository_url" {
+  description = "URL of the private ECR repository"
+  value       = aws_ecr_repository.application.repository_url
+}
+```
+
+Apply terraform code
+```bash
+terraform fmt
+terraform validate
+terraform plan
+terraform apply
+```
+
+Remark
+- Plan: 1 to add, 0 to change, 0 to destroy.
+- Plan 1: aws_ecr_repository.application will be created
+
+Remark
+- ecr_repository_url = "713362557514.dkr.ecr.ap-southeast-1.amazonaws.com/devops-bootcamp/final-project-mhadiyahya"
+
+## Verify melalui AWS CLI
+```bash
+aws ecr describe-repositories \
+  --repository-names devops-bootcamp/final-project-mhadiyahya \
+  --region ap-southeast-1 \
+  --query 'repositories[0].{Name:repositoryName,URI:repositoryUri,Mutability:imageTagMutability,Encryption:encryptionConfiguration.encryptionType,Created:createdAt}' \
+  --output table
+```
+
+|                                            DescribeRepositories                                            |
++------------+-----------------------------------------------------------------------------------------------+
+|  Created   |  2026-09-14T00:34:38.623000+08:00                                                             |
+|  Encryption|  AES256                                                                                       |
+|  Mutability|  MUTABLE                                                                                      |
+|  Name      |  devops-bootcamp/final-project-mhadiyahya                                                     |
+|  URI       |  713362557514.dkr.ecr.ap-southeast-1.amazonaws.com/devops-bootcamp/final-project-mhadiyahya   |
++------------+-----------------------------------------------------------------------------------------------+
+
+verify repo masih kosong
+```bash
+aws ecr list-images \
+  --repository-name devops-bootcamp/final-project-mhadiyahya \
+  --region ap-southeast-1 \
+  --output table
+```
+
+Remark
+- Tiada list images
+
+verify terraform 
+```bash
+terraform state show aws_ecr_repository.application
+```
+
+```text
+# aws_ecr_repository.application:
+resource "aws_ecr_repository" "application" {
+    arn                  = "arn:aws:ecr:ap-southeast-1:713362557514:repository/devops-bootcamp/final-project-mhadiyahya"
+    force_delete         = true
+    id                   = "devops-bootcamp/final-project-mhadiyahya"
+    image_tag_mutability = "MUTABLE"
+    name                 = "devops-bootcamp/final-project-mhadiyahya"
+    region               = "ap-southeast-1"
+    registry_id          = "713362557514"
+    repository_url       = "713362557514.dkr.ecr.ap-southeast-1.amazonaws.com/devops-bootcamp/final-project-mhadiyahya"
+    tags                 = {
+        "Name"    = "devops-bootcamp-final-project-mhadiyahya"
+        "Project" = "mhadiyahya"
+    }
+    tags_all             = {
+        "Name"    = "devops-bootcamp-final-project-mhadiyahya"
+        "Project" = "mhadiyahya"
+    }
+
+    encryption_configuration {
+        encryption_type = "AES256"
+        kms_key         = null
+    }
+
+    image_scanning_configuration {
+        scan_on_push = false
+    }
+}
+```
+
+## Commit kerja ecr.tf
+```bash
+git status --short
+git check-ignore -v ecr.tfplan
+
+git add ecr.tf
+git diff --cached
+
+git commit -m "feat(terraform): create private ECR repository"
+
+git push --set-upstream origin feature/ecr-repository
+```
+
+Remark
+- branch 'feature/ecr-repository' set up to track 'origin/feature/ecr-repository'.
+
+
+
