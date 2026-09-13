@@ -707,3 +707,176 @@ resource "aws_vpc_security_group_ingress_rule" "private_icmp" {
   description = "Allow ICMP from VPC"
 }
 ---
+
+# Backend Terraform
+Buat masa ini terraform files berada di local.
+Untuk langkah berikutnya saya akan migrate ke S3 Bucket.
+Selepas itu tukar kepada block backend.
+
+## Migration Prep
+
+### Verify state
+terraform state list
+data.aws_ami.ubuntu
+aws_eip.nat_eip
+aws_eip.web_eip
+aws_eip_association.web_eip_association
+aws_iam_instance_profile.ssm_profile
+aws_iam_role.ssm_role
+aws_iam_role_policy_attachment.ssm_core
+aws_instance.controller
+aws_instance.monitoring
+aws_instance.web_server
+aws_internet_gateway.devops_igw
+aws_nat_gateway.devops_ngw
+aws_route_table.private_route
+aws_route_table.public_route
+aws_route_table_association.private_route_association
+aws_route_table_association.public_route_association
+aws_security_group.private_sg
+aws_security_group.public_sg
+aws_subnet.private_subnet
+aws_subnet.public_subnet
+aws_vpc.devops_vpc
+aws_vpc_security_group_egress_rule.private_egress
+aws_vpc_security_group_egress_rule.public_egress
+aws_vpc_security_group_ingress_rule.public_http
+aws_vpc_security_group_ingress_rule.public_node_exporter
+
+### Check any pending plan
+terraform plan
+
+Remark:
+- Plan: 2 to add, 0 to change, 2 to destroy.
+- Action: # aws_eip_association.web_eip_association must be replaced
+- Action: # aws_instance.web_server must be replaced
+
+### Validate
+Plan: 2 to add, 0 to change, 2 to destroy. - sbb nak tukar associate_public_ip_address = false\
+go to go with terraform apply.
+
+## Migration ke S3 
+
+### Create bucket
+aws s3api create-bucket \
+  --bucket devops-bootcamp-terraform-mhadiyahya \
+  --region ap-southeast-1 \
+  --create-bucket-configuration LocationConstraint=ap-southeast-1
+
+Remark:
+{
+    "Location": "http://devops-bootcamp-terraform-mhadiyahya.s3.amazonaws.com/",
+    "BucketArn": "arn:aws:s3:::devops-bootcamp-terraform-mhadiyahya"
+}
+
+### Versioning
+aws s3api put-bucket-versioning \
+  --bucket devops-bootcamp-terraform-mhadiyahya \
+  --versioning-configuration Status=Enabled
+
+### Block public access
+aws s3api put-public-access-block \
+  --bucket devops-bootcamp-terraform-mhadiyahya \
+  --public-access-block-configuration \
+  BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+
+### Encryption
+aws s3api put-bucket-encryption \
+  --bucket devops-bootcamp-terraform-mhadiyahya \
+  --server-side-encryption-configuration \
+  '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"},"BucketKeyEnabled":true}]}'
+
+### Verification
+Verify Status\
+aws s3api get-bucket-versioning \
+  --bucket devops-bootcamp-terraform-mhadiyahya
+
+Remark:
+{
+    "Status": "Enabled"
+}
+
+Verify Block\
+aws s3api get-public-access-block \
+  --bucket devops-bootcamp-terraform-mhadiyahya
+
+Remark:
+{
+    "PublicAccessBlockConfiguration": {
+        "BlockPublicAcls": true,
+        "IgnorePublicAcls": true,
+        "BlockPublicPolicy": true,
+        "RestrictPublicBuckets": true
+    }
+}
+
+Verify Encryption\
+aws s3api get-bucket-encryption \
+  --bucket devops-bootcamp-terraform-mhadiyahya
+
+Remark:
+{
+    "ServerSideEncryptionConfiguration": {
+        "Rules": [
+            {
+                "ApplyServerSideEncryptionByDefault": {
+                    "SSEAlgorithm": "AES256"
+                },
+                "BucketKeyEnabled": true,
+                "BlockedEncryptionTypes": {
+                    "EncryptionType": [
+                        "SSE-C"
+                    ]
+                }
+            }
+        ]
+    }
+}
+
+Verity Content\
+aws s3api list-objects-v2 \
+  --bucket devops-bootcamp-terraform-mhadiyahya
+
+Remark:
+{
+    "RequestCharged": null,
+    "Prefix": ""
+}
+
+### Buat data sandaran
+cp terraform.tfstate terraform.tfstate.pre-s3-migration.backup\
+ls -lh terraform.tfstate*\
+Permissions Size User Date Modified Name\
+.rw-r--r--   56k hadi 13 Sep 16:40  󱁢 terraform.tfstate\
+.rw-r--r--   54k hadi 13 Sep 16:40   terraform.tfstate.backup\
+.rw-r--r--   56k hadi 13 Sep 16:55   terraform.tfstate.pre-s3-migration.backup
+
+### Migrate init
+terraform fmt\
+terraform init -migrate-state
+
+Remark:
+- Successfully configured the backend "s3"! Terraform will automatically use this backend unless the backend configuration changes.
+- Terraform has been successfully initialized!
+
+### Migrate post
+terraform state list
+terraform plan
+
+Remark:
+- No changes. Your infrastructure matches the configuration.
+
+### Verify remote state
+aws s3api list-objects-v2 \
+  --bucket devops-bootcamp-terraform-mhadiyahya \
+  --prefix devops-bootcamp-project/ \
+  --query 'Contents[].{Key:Key,Size:Size,LastModified:LastModified}' \
+  --output table
+
+Remark:
+| Key | astModified | Size |
+| :-- | :-- | :-- |
+| devops-bootcamp-project/terraform.tfstate | 2026-09-13T09:05:55+00:00 | 56066 |
+
+## Block Backend
+
