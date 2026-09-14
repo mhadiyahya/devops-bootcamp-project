@@ -1,0 +1,43 @@
+---
+- name: Deploy Prometheus Node Exporter
+  hosts: managed_nodes
+  become: true
+  gather_facts: false
+
+  vars:
+    node_exporter_image: quay.io/prometheus/node-exporter:v1.12.1
+    node_exporter_container_name: node-exporter
+
+  tasks:
+    - name: Verify Docker CLI is available
+      ansible.builtin.command:
+        argv:
+          - docker
+          - --version
+      changed_when: false
+
+    - name: Ensure Node Exporter container is running
+      community.docker.docker_container:
+        name: "{{ node_exporter_container_name }}"
+        image: "{{ node_exporter_image }}"
+        state: started
+        pull: missing
+        restart_policy: unless-stopped
+        network_mode: host
+        pid_mode: host
+        volumes:
+          - "/:/host:ro,rslave"
+        command:
+          - "--path.rootfs=/host"
+
+    - name: Wait for Node Exporter metrics endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:9100/metrics
+        method: GET
+        status_code: 200
+        return_content: false
+      register: node_exporter_health
+      until: node_exporter_health.status == 200
+      retries: 12
+      delay: 5
+      changed_when: false
