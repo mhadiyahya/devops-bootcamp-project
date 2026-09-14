@@ -4,3 +4,7 @@ roles:
     src: https://github.com/geerlingguy/ansible-role-docker.git
     scm: git
     version: 1d3968dbf0df48515ffda0f6561cbd25206f502a
+
+collections:
+  - name: community.docker
+    version: 5.2.1

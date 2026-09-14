@@ -1,0 +1,74 @@
+---
+- name: Deploy Ship application from Amazon ECR
+  hosts: web_servers
+  become: true
+  gather_facts: false
+
+  vars:
+    aws_region: ap-southeast-1
+    ecr_registry: 713362557514.dkr.ecr.ap-southeast-1.amazonaws.com
+    ecr_repository: devops-bootcamp/final-project-mhadiyahya
+    app_version: v1.0.0
+    app_image: >-
+      {{ ecr_registry }}/{{ ecr_repository }}:{{ app_version }}
+    app_container_name: ship-app
+
+  tasks:
+    - name: Verify Docker CLI is available
+      ansible.builtin.command:
+        argv:
+          - docker
+          - --version
+      register: docker_version
+      changed_when: false
+
+    - name: Verify AWS CLI is available
+      ansible.builtin.command:
+        argv:
+          - aws
+          - --version
+      register: aws_cli_version
+      changed_when: false
+
+    - name: Get temporary Amazon ECR authorization password
+      ansible.builtin.command:
+        argv:
+          - aws
+          - ecr
+          - get-login-password
+          - --region
+          - "{{ aws_region }}"
+      register: ecr_authorization
+      changed_when: false
+      no_log: true
+
+    - name: Authenticate Docker to Amazon ECR
+      community.docker.docker_login:
+        registry_url: "{{ ecr_registry }}"
+        username: AWS
+        password: "{{ ecr_authorization.stdout }}"
+        reauthorize: true
+      changed_when: false
+      no_log: true
+
+    - name: Ensure Ship application container is running
+      community.docker.docker_container:
+        name: "{{ app_container_name }}"
+        image: "{{ app_image }}"
+        state: started
+        pull: missing
+        restart_policy: unless-stopped
+        published_ports:
+          - "80:80"
+
+    - name: Wait for Ship application to return HTTP 200
+      ansible.builtin.uri:
+        url: http://127.0.0.1
+        method: GET
+        status_code: 200
+        return_content: false
+      register: application_health
+      until: application_health.status == 200
+      retries: 12
+      delay: 5
+      changed_when: false
