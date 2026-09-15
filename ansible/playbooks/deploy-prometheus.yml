@@ -1,0 +1,74 @@
+---
+- name: Deploy Prometheus monitoring server
+  hosts: monitoring_servers
+  become: true
+  gather_facts: false
+
+  vars:
+    prometheus_image: quay.io/prometheus/prometheus:v3.13.3
+    prometheus_container_name: prometheus
+    prometheus_config_directory: /opt/prometheus
+    prometheus_config_file: /opt/prometheus/prometheus.yml
+    prometheus_data_volume: prometheus-data
+
+  tasks:
+    - name: Verify Docker CLI is available
+      ansible.builtin.command:
+        argv:
+          - docker
+          - --version
+      changed_when: false
+
+    - name: Create Prometheus configuration directory
+      ansible.builtin.file:
+        path: "{{ prometheus_config_directory }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Deploy Prometheus configuration
+      ansible.builtin.template:
+        src: ../templates/prometheus.yml.j2
+        dest: "{{ prometheus_config_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+      register: prometheus_config
+
+    - name: Ensure Prometheus data volume exists
+      community.docker.docker_volume:
+        name: "{{ prometheus_data_volume }}"
+        state: present
+
+    - name: Ensure Prometheus container is running
+      community.docker.docker_container:
+        name: "{{ prometheus_container_name }}"
+        image: "{{ prometheus_image }}"
+        state: started
+        pull: missing
+        restart_policy: unless-stopped
+        network_mode: host
+        volumes:
+          - "{{ prometheus_config_file }}:/etc/prometheus/prometheus.yml:ro"
+          - "{{ prometheus_data_volume }}:/prometheus"
+        command:
+          - "--config.file=/etc/prometheus/prometheus.yml"
+          - "--storage.tsdb.path=/prometheus"
+        recreate: "{{ prometheus_config.changed }}"
+        log_driver: json-file
+        log_options:
+          max-size: "10m"
+          max-file: "3"
+
+    - name: Wait for Prometheus readiness endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:9090/-/ready
+        method: GET
+        status_code: 200
+        return_content: false
+      register: prometheus_readiness
+      until: prometheus_readiness.status == 200
+      retries: 18
+      delay: 5
+      changed_when: false
