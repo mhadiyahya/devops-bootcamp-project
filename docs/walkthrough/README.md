@@ -2,6 +2,8 @@
 
 This walkthrough is for rebuilding the project yourself later. It follows 5W1H so each phase explains what to do, why it matters, who/where it applies, when to do it, and how to verify it.
 
+For a deeper build-from-zero explanation with code logic, fundamentals, and assessment checkpoints, read [`detailed-build.md`](detailed-build.md).
+
 ## Scoring Remark
 
 Current practical score estimate: `121/122`.
