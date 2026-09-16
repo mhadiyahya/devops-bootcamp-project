@@ -11,6 +11,7 @@ dist/
 .env.*
 
 ansible/*.retry
+ansible/group_vars/all/terraform_outputs.yml
 __pycache__/
 
 .DS_Store

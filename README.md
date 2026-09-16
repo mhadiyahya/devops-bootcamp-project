@@ -6,7 +6,6 @@ Full DevOps bootcamp final project for `hadiyahyalab.com`.
 
 | Item | Value |
 | --- | --- |
-| AWS account | `713362557514` |
 | AWS region | `ap-southeast-1` |
 | Resource suffix | `hadiyahya` |
 | Domain | `hadiyahyalab.com` |
