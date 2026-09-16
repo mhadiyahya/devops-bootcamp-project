@@ -194,7 +194,13 @@ For a full rebuild guide, see [`docs/walkthrough/README.md`](docs/walkthrough/RE
 
 ## Cleanup
 
-To avoid ongoing AWS cost after assessment:
+To avoid ongoing AWS cost after assessment, follow the detailed cleanup guide:
+
+```text
+docs/walkthrough/destroy-aws-resources.md
+```
+
+Short version:
 
 ```bash
 cd terraform/envs/prod

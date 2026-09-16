@@ -1748,6 +1748,8 @@ Before assessment, review the code against these questions:
 
 ## 22. Cleanup
 
+For the full cleanup procedure, including ECR image deletion and backend bucket cleanup, read [`destroy-aws-resources.md`](destroy-aws-resources.md).
+
 Only clean up after assessment.
 
 ```bash

@@ -437,6 +437,8 @@ Expected:
 
 ## 14. Cleanup After Assessment
 
+For the full cleanup procedure, including ECR image deletion and backend bucket cleanup, read [`destroy-aws-resources.md`](destroy-aws-resources.md).
+
 **What:** Destroy resources to avoid cost.
 
 **Why:** EC2, EIP, S3, and other AWS resources can continue billing.
