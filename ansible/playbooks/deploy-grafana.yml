@@ -13,6 +13,11 @@
     grafana_admin_user: admin
     grafana_provisioning_directory: /opt/grafana/provisioning/datasources
     grafana_datasource_file: /opt/grafana/provisioning/datasources/prometheus.yml
+    grafana_dashboard_provisioning_directory: /opt/grafana/provisioning/dashboards
+    grafana_dashboard_provider_file: /opt/grafana/provisioning/dashboards/infrastructure.yml
+    grafana_dashboard_directory: /opt/grafana/dashboards
+    grafana_node_exporter_dashboard_file: /opt/grafana/dashboards/node-exporter-full.json
+    grafana_node_exporter_dashboard_uid: rYdddlPWk
     grafana_data_volume: grafana-data
 
   tasks:
@@ -49,6 +54,40 @@
         mode: "0644"
       register: grafana_datasource
 
+    - name: Create Grafana dashboard provisioning directory
+      ansible.builtin.file:
+        path: "{{ grafana_dashboard_provisioning_directory }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Create Grafana dashboard directory
+      ansible.builtin.file:
+        path: "{{ grafana_dashboard_directory }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Deploy Grafana dashboard provider
+      ansible.builtin.template:
+        src: ../templates/grafana-dashboard-provider.yml.j2
+        dest: "{{ grafana_dashboard_provider_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+      register: grafana_dashboard_provider
+
+    - name: Deploy Node Exporter Full dashboard
+      ansible.builtin.copy:
+        src: ../files/grafana-dashboards/node-exporter-full.json
+        dest: "{{ grafana_node_exporter_dashboard_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+      register: grafana_node_exporter_dashboard
+
     - name: Ensure Grafana data volume exists
       community.docker.docker_volume:
         name: "{{ grafana_data_volume }}"
@@ -62,10 +101,17 @@
         pull: missing
         restart_policy: unless-stopped
         network_mode: host
-        restart: "{{ grafana_datasource.changed }}"
+        restart: >-
+          {{
+            grafana_datasource.changed
+            or grafana_dashboard_provider.changed
+            or grafana_node_exporter_dashboard.changed
+          }}
         volumes:
           - "{{ grafana_data_volume }}:/var/lib/grafana"
           - "{{ grafana_provisioning_directory }}:/etc/grafana/provisioning/datasources:ro"
+          - "{{ grafana_dashboard_provisioning_directory }}:/etc/grafana/provisioning/dashboards:ro"
+          - "{{ grafana_dashboard_directory }}:/etc/grafana/dashboards:ro"
         env:
           GF_SECURITY_ADMIN_USER: "{{ grafana_admin_user }}"
           GF_SECURITY_ADMIN_PASSWORD: "{{ vault_grafana_admin_password }}"
@@ -118,6 +164,23 @@
         return_content: false
       register: grafana_prometheus_health
       until: grafana_prometheus_health.status == 200
+      retries: 6
+      delay: 5
+      changed_when: false
+      no_log: true
+
+    - name: Verify Node Exporter Full dashboard is provisioned
+      ansible.builtin.uri:
+        url: >-
+          http://127.0.0.1:3000/api/dashboards/uid/{{ grafana_node_exporter_dashboard_uid }}
+        method: GET
+        user: "{{ grafana_admin_user }}"
+        password: "{{ vault_grafana_admin_password }}"
+        force_basic_auth: true
+        status_code: 200
+        return_content: false
+      register: grafana_node_exporter_dashboard_api
+      until: grafana_node_exporter_dashboard_api.status == 200
       retries: 6
       delay: 5
       changed_when: false
