@@ -1,0 +1,16 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
+tfplan
+
+node_modules/
+dist/
+.env
+.env.*
+
+ansible/*.retry
+__pycache__/
+
+.DS_Store

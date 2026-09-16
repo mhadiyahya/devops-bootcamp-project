@@ -1,0 +1,16 @@
+---
+- name: Configure web server
+  hosts: role_web
+  become: true
+  roles:
+    - common
+    - geerlingguy.docker
+    - web_app
+
+- name: Configure monitoring server
+  hosts: role_monitoring
+  become: true
+  roles:
+    - common
+    - geerlingguy.docker
+    - monitoring

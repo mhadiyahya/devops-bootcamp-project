@@ -1,0 +1,6 @@
+---
+prometheus_port: 9090
+grafana_port: 3000
+prometheus_config_dir: /opt/prometheus
+grafana_data_volume: grafana-data
+web_node_exporter_target: 10.0.0.5:9100

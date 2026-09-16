@@ -1,0 +1,38 @@
+---
+- name: Require ECR repository URL
+  ansible.builtin.assert:
+    that:
+      - ecr_repository_url | length > 0
+    fail_msg: "Set ecr_repository_url from Terraform output before running this playbook."
+
+- name: Log in Docker to Amazon ECR
+  ansible.builtin.shell: |
+    set -euo pipefail
+    aws ecr get-login-password --region {{ aws_region }} |
+      docker login --username AWS --password-stdin {{ ecr_repository_url | regex_replace('/.*$', '') }}
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Run application container
+  community.docker.docker_container:
+    name: "{{ app_container_name }}"
+    image: "{{ ecr_repository_url }}:{{ app_image_tag }}"
+    pull: always
+    restart_policy: unless-stopped
+    published_ports:
+      - "{{ app_host_port }}:{{ app_container_port }}"
+
+- name: Run node_exporter container
+  community.docker.docker_container:
+    name: "{{ node_exporter_container_name }}"
+    image: quay.io/prometheus/node-exporter:v1.8.2
+    pull: true
+    restart_policy: unless-stopped
+    command:
+      - "--path.rootfs=/host"
+    pid_mode: host
+    published_ports:
+      - "{{ node_exporter_port }}:9100"
+    volumes:
+      - "/:/host:ro,rslave"

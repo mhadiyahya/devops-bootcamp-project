@@ -1,0 +1,16 @@
+---
+plugin: amazon.aws.aws_ec2
+regions:
+  - ap-southeast-1
+filters:
+  tag:Project: devops-bootcamp
+  instance-state-name: running
+hostnames:
+  - instance-id
+keyed_groups:
+  - key: tags.Role
+    prefix: role
+compose:
+  ansible_host: instance_id
+  private_ip: private_ip_address
+  name: tags.Name

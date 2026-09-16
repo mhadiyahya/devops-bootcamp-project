@@ -1,0 +1,6 @@
+---
+app_container_name: final-project-app
+app_host_port: 80
+app_container_port: 80
+node_exporter_container_name: node-exporter
+node_exporter_port: 9100

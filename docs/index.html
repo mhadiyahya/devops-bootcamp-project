@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DevOps Bootcamp Project - hadiyahyalab.com</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        line-height: 1.55;
+        color: #17202a;
+        background: #f7f9fb;
+      }
+      header, main {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 32px 20px;
+      }
+      header {
+        border-bottom: 1px solid #d8dee4;
+      }
+      h1, h2 {
+        line-height: 1.2;
+      }
+      code {
+        background: #edf2f7;
+        padding: 2px 5px;
+        border-radius: 4px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+      }
+      th, td {
+        border: 1px solid #d8dee4;
+        padding: 10px;
+        text-align: left;
+      }
+      th {
+        background: #edf2f7;
+      }
+      section {
+        margin: 28px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>DevOps Bootcamp Project</h1>
+      <p>Domain: <strong>hadiyahyalab.com</strong> | Region: <strong>ap-southeast-1</strong> | Account: <strong>713362557514</strong></p>
+    </header>
+    <main>
+      <section>
+        <h2>Required URLs</h2>
+        <table>
+          <tr><th>Artifact</th><th>URL</th><th>Status</th></tr>
+          <tr><td>Application</td><td><a href="http://web.hadiyahyalab.com">http://web.hadiyahyalab.com</a></td><td>Update after DNS is configured</td></tr>
+          <tr><td>Grafana</td><td><a href="https://monitoring.hadiyahyalab.com">https://monitoring.hadiyahyalab.com</a></td><td>Update after Cloudflare Tunnel is configured</td></tr>
+          <tr><td>Repository</td><td><a href="https://github.com/mhadiyahya/devops-bootcamp-project">https://github.com/mhadiyahya/devops-bootcamp-project</a></td><td>Public repo</td></tr>
+        </table>
+      </section>
+
+      <section>
+        <h2>Architecture</h2>
+        <p>The project provisions one VPC <code>10.0.0.0/24</code> with a public subnet for the web server and a private subnet for the Ansible controller and monitoring server. Access is SSM-first, with no SSH ingress required for private instances.</p>
+        <ul>
+          <li>Web server: <code>10.0.0.5</code>, public Elastic IP, Docker app on port 80, node_exporter on port 9100.</li>
+          <li>Ansible controller: <code>10.0.0.135</code>, private subnet, runs configuration through AWS SSM.</li>
+          <li>Monitoring server: <code>10.0.0.136</code>, private subnet, Prometheus and Grafana as containers.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Delivery Flow</h2>
+        <ol>
+          <li>Run <code>scripts/preflight-check.sh</code> to verify GitHub, AWS CLI, AWS identity, and SSM readiness.</li>
+          <li>Bootstrap Terraform state in <code>terraform/bootstrap</code>.</li>
+          <li>Apply production infrastructure in <code>terraform/envs/prod</code>.</li>
+          <li>Build and push the app image to ECR through GitHub Actions.</li>
+          <li>Deploy from the Ansible controller to the web and monitoring instances.</li>
+          <li>Configure Cloudflare DNS and Tunnel for the public application and private Grafana access.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Cloudflare Notes</h2>
+        <p>Create an A record for <code>web.hadiyahyalab.com</code> pointing to the Terraform output <code>web_public_ip</code>. Create a Cloudflare Tunnel route for <code>monitoring.hadiyahyalab.com</code> to reach Grafana on the private monitoring server at <code>http://10.0.0.136:3000</code>.</p>
+      </section>
+
+      <section>
+        <h2>Evidence To Add</h2>
+        <p>Add screenshots of Terraform outputs, EC2 instances, ECR image, application page, Prometheus targets, Grafana dashboard, Cloudflare DNS, and Cloudflare Tunnel before final submission.</p>
+      </section>
+    </main>
+  </body>
+</html>

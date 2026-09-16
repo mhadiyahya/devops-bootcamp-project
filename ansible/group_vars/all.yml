@@ -1,0 +1,17 @@
+---
+aws_region: ap-southeast-1
+project_suffix: hadiyahya
+domain_name: hadiyahyalab.com
+
+ecr_repository_url: ""
+app_image_tag: latest
+ansible_ssm_bucket: ""
+
+ansible_connection: amazon.aws.aws_ssm
+ansible_aws_ssm_region: "{{ aws_region }}"
+ansible_aws_ssm_bucket_name: "{{ ansible_ssm_bucket }}"
+ansible_aws_ssm_timeout: 60
+ansible_python_interpreter: /usr/bin/python3
+
+docker_users:
+  - ubuntu
