@@ -18,7 +18,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "expr": "100 - (avg by (instance, server) (rate(node_cpu_seconds_total{job=\"node-exporter\",mode=\"idle\"}[5m])) * 100)",
+          "expr": "100 - (avg by (server) (rate(node_cpu_seconds_total{job=\"node-exporter\",server=~\"$server\",mode=\"idle\"}[5m])) * 100)",
           "legendFormat": "{{ '{{' }}server{{ '}}' }} CPU"
         }
       ],
@@ -34,7 +34,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "expr": "(1 - (node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"})) * 100",
+          "expr": "(1 - (node_memory_MemAvailable_bytes{job=\"node-exporter\",server=~\"$server\"} / node_memory_MemTotal_bytes{job=\"node-exporter\",server=~\"$server\"})) * 100",
           "legendFormat": "{{ '{{' }}server{{ '}}' }} memory"
         }
       ],
@@ -50,7 +50,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "expr": "100 - ((node_filesystem_avail_bytes{job=\"node-exporter\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"} * 100) / node_filesystem_size_bytes{job=\"node-exporter\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"})",
+          "expr": "100 - ((node_filesystem_avail_bytes{job=\"node-exporter\",server=~\"$server\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"} * 100) / node_filesystem_size_bytes{job=\"node-exporter\",server=~\"$server\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"})",
           "legendFormat": "{{ '{{' }}server{{ '}}' }} root disk"
         }
       ],
@@ -67,18 +67,157 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "expr": "up{job=\"node-exporter\"}",
+          "expr": "up{job=\"node-exporter\",server=~\"$server\"}",
           "legendFormat": "{{ '{{' }}server{{ '}}' }}"
         }
       ],
       "title": "Node Exporter Health",
       "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16},
+      "id": 5,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "node_load1{job=\"node-exporter\",server=~\"$server\"}",
+          "legendFormat": "{{ '{{' }}server{{ '}}' }} load 1m"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "node_load5{job=\"node-exporter\",server=~\"$server\"}",
+          "legendFormat": "{{ '{{' }}server{{ '}}' }} load 5m"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "node_load15{job=\"node-exporter\",server=~\"$server\"}",
+          "legendFormat": "{{ '{{' }}server{{ '}}' }} load 15m"
+        }
+      ],
+      "title": "System Load",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16},
+      "id": 6,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showPercentChange": false, "textMode": "auto", "wideLayout": true},
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "time() - node_boot_time_seconds{job=\"node-exporter\",server=~\"$server\"}",
+          "legendFormat": "{{ '{{' }}server{{ '}}' }} uptime"
+        }
+      ],
+      "title": "Uptime",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16},
+      "id": 7,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showPercentChange": false, "textMode": "auto", "wideLayout": true},
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "count by (server) (node_cpu_seconds_total{job=\"node-exporter\",server=~\"$server\",mode=\"idle\"})",
+          "legendFormat": "{{ '{{' }}server{{ '}}' }} vCPU"
+        }
+      ],
+      "title": "CPU Core Count",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "Bps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "id": 8,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum by (server) (rate(node_network_receive_bytes_total{job=\"node-exporter\",server=~\"$server\",device!~\"lo|docker.*|br-.*|veth.*\"}[5m]))",
+          "legendFormat": "{{ '{{' }}server{{ '}}' }} receive"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum by (server) (rate(node_network_transmit_bytes_total{job=\"node-exporter\",server=~\"$server\",device!~\"lo|docker.*|br-.*|veth.*\"}[5m]))",
+          "legendFormat": "{{ '{{' }}server{{ '}}' }} transmit"
+        }
+      ],
+      "title": "Network Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "Bps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "id": 9,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum by (server) (rate(node_disk_read_bytes_total{job=\"node-exporter\",server=~\"$server\",device!~\"loop.*|ram.*\"}[5m]))",
+          "legendFormat": "{{ '{{' }}server{{ '}}' }} read"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum by (server) (rate(node_disk_written_bytes_total{job=\"node-exporter\",server=~\"$server\",device!~\"loop.*|ram.*\"}[5m]))",
+          "legendFormat": "{{ '{{' }}server{{ '}}' }} write"
+        }
+      ],
+      "title": "Disk I/O",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 32},
+      "id": 10,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "100 - ((node_filesystem_avail_bytes{job=\"node-exporter\",server=~\"$server\",fstype!~\"tmpfs|overlay|squashfs\"} * 100) / node_filesystem_size_bytes{job=\"node-exporter\",server=~\"$server\",fstype!~\"tmpfs|overlay|squashfs\"})",
+          "legendFormat": "{{ '{{' }}server{{ '}}' }} {{ '{{' }}mountpoint{{ '}}' }}"
+        }
+      ],
+      "title": "Filesystem Usage By Mount",
+      "type": "timeseries"
     }
   ],
   "refresh": "15s",
   "schemaVersion": 40,
   "tags": ["devops-bootcamp", "node-exporter"],
-  "templating": {"list": []},
+  "templating": {
+    "list": [
+      {
+        "allValue": ".*",
+        "current": {"selected": true, "text": "All", "value": "$__all"},
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "definition": "label_values(up{job=\"node-exporter\"}, server)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Server",
+        "multi": true,
+        "name": "server",
+        "options": [],
+        "query": {"query": "label_values(up{job=\"node-exporter\"}, server)", "refId": "PrometheusVariableQueryEditor-VariableQuery"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
   "time": {"from": "now-30m", "to": "now"},
   "timepicker": {},
   "timezone": "browser",
