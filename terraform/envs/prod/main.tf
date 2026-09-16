@@ -363,6 +363,8 @@ locals {
   controller_user_data = <<-EOF
     ${local.common_user_data}
     apt-get install -y git ansible
+    curl -fsSL https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb -o /tmp/session-manager-plugin.deb
+    dpkg -i /tmp/session-manager-plugin.deb
     ansible-galaxy collection install amazon.aws community.docker
     ansible-galaxy role install geerlingguy.docker
   EOF
