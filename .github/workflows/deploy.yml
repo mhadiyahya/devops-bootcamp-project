@@ -42,6 +42,7 @@ jobs:
           ECR_REPOSITORY_URL: ${{ steps.tf.outputs.ecr_repository_url }}
           ANSIBLE_SSM_BUCKET: ${{ steps.tf.outputs.ansible_ssm_bucket }}
           APP_IMAGE_TAG: ${{ inputs.image_tag }}
+          ANSIBLE_LIMIT: all
         run: |
           cat > commands.json <<EOF
           {
@@ -52,7 +53,7 @@ jobs:
               "sudo -u ubuntu bash -lc 'cd ~/devops-bootcamp-project && ansible-galaxy install -r ansible/requirements.yml --force'",
               "sudo -u ubuntu bash -lc 'mkdir -p ~/devops-bootcamp-project/ansible/group_vars/all'",
               "sudo -u ubuntu bash -lc 'cat > ~/devops-bootcamp-project/ansible/group_vars/all/terraform_outputs.yml <<VARS\n---\necr_repository_url: \"${ECR_REPOSITORY_URL}\"\nansible_ssm_bucket: \"${ANSIBLE_SSM_BUCKET}\"\napp_image_tag: \"${APP_IMAGE_TAG}\"\nVARS'",
-              "sudo -u ubuntu bash -lc 'cd ~/devops-bootcamp-project/ansible && ansible-playbook playbooks/site.yml'"
+              "sudo -u ubuntu bash -lc 'cd ~/devops-bootcamp-project/ansible && ansible-playbook playbooks/site.yml --limit ${ANSIBLE_LIMIT}'"
             ]
           }
           EOF

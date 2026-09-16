@@ -7,6 +7,7 @@ TF_DIR="$ROOT_DIR/terraform/envs/prod"
 AWS_REGION="${AWS_REGION:-ap-southeast-1}"
 APP_IMAGE_TAG="${APP_IMAGE_TAG:-latest}"
 REPO_URL="${REPO_URL:-https://github.com/mhadiyahya/devops-bootcamp-project.git}"
+ANSIBLE_LIMIT="${ANSIBLE_LIMIT:-all}"
 
 cd "$TF_DIR"
 
@@ -27,7 +28,7 @@ cat >"$COMMAND_FILE" <<EOF
     "sudo -u ubuntu bash -lc 'cd ~/devops-bootcamp-project && ansible-galaxy install -r ansible/requirements.yml --force'",
     "sudo -u ubuntu bash -lc 'mkdir -p ~/devops-bootcamp-project/ansible/group_vars/all'",
     "sudo -u ubuntu bash -lc 'cat > ~/devops-bootcamp-project/ansible/group_vars/all/terraform_outputs.yml <<VARS\n---\necr_repository_url: \"${ECR_REPOSITORY_URL}\"\nansible_ssm_bucket: \"${ANSIBLE_SSM_BUCKET}\"\napp_image_tag: \"${APP_IMAGE_TAG}\"\nVARS'",
-    "sudo -u ubuntu bash -lc 'cd ~/devops-bootcamp-project/ansible && ansible-playbook playbooks/site.yml'"
+    "sudo -u ubuntu bash -lc 'cd ~/devops-bootcamp-project/ansible && ansible-playbook playbooks/site.yml --limit ${ANSIBLE_LIMIT}'"
   ]
 }
 EOF
@@ -43,10 +44,23 @@ COMMAND_ID="$(aws ssm send-command \
 
 echo "Sent command $COMMAND_ID to controller $CONTROLLER_INSTANCE_ID"
 
-aws ssm wait command-executed \
-  --region "$AWS_REGION" \
-  --command-id "$COMMAND_ID" \
-  --instance-id "$CONTROLLER_INSTANCE_ID"
+for _ in $(seq 1 120); do
+  STATUS="$(aws ssm get-command-invocation \
+    --region "$AWS_REGION" \
+    --command-id "$COMMAND_ID" \
+    --instance-id "$CONTROLLER_INSTANCE_ID" \
+    --query Status \
+    --output text)"
+
+  case "$STATUS" in
+    Success|Cancelled|TimedOut|Failed|Cancelling)
+      break
+      ;;
+  esac
+
+  echo "Controller command status: $STATUS"
+  sleep 15
+done
 
 aws ssm get-command-invocation \
   --region "$AWS_REGION" \
@@ -54,3 +68,5 @@ aws ssm get-command-invocation \
   --instance-id "$CONTROLLER_INSTANCE_ID" \
   --query '[Status,StandardOutputContent,StandardErrorContent]' \
   --output text
+
+[[ "${STATUS:-Unknown}" == "Success" ]]
