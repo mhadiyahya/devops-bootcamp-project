@@ -189,7 +189,7 @@ Add screenshots before final submission:
 - Cloudflare Tunnel route for monitoring
 - GitHub Pages documentation
 
-For a full rebuild guide, see [`docs/walkthrough/README.md`](docs/walkthrough/README.md). For the detailed build-from-zero explanation, see [`docs/walkthrough/detailed-build.md`](docs/walkthrough/detailed-build.md).
+For a full rebuild guide, see [`docs/walkthrough/README.md`](docs/walkthrough/README.md). For the detailed build-from-zero explanation, see [`docs/walkthrough/detailed-build.md`](docs/walkthrough/detailed-build.md). For a two-phase learning path, see [`docs/walkthrough/phased/README.md`](docs/walkthrough/phased/README.md).
 
 ## Cleanup
 
