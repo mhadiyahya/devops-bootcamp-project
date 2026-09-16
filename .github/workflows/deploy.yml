@@ -46,7 +46,7 @@ jobs:
           cat > commands.json <<EOF
           {
             "commands": [
-              "set -euo pipefail",
+              "set -eu",
               "sudo -u ubuntu bash -lc 'rm -rf ~/devops-bootcamp-project && git clone ${REPO_URL} ~/devops-bootcamp-project'",
               "sudo -u ubuntu bash -lc 'cd ~/devops-bootcamp-project && ansible-galaxy install -r ansible/requirements.yml'",
               "sudo -u ubuntu bash -lc 'mkdir -p ~/devops-bootcamp-project/ansible/group_vars/all'",

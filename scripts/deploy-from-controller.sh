@@ -20,7 +20,7 @@ trap 'rm -f "$COMMAND_FILE"' EXIT
 cat >"$COMMAND_FILE" <<EOF
 {
   "commands": [
-    "set -euo pipefail",
+    "set -eu",
     "if ! command -v ansible >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y git ansible python3-boto3 python3-botocore; fi",
     "sudo -u ubuntu bash -lc 'rm -rf ~/devops-bootcamp-project && git clone ${REPO_URL} ~/devops-bootcamp-project'",
     "sudo -u ubuntu bash -lc 'cd ~/devops-bootcamp-project && ansible-galaxy install -r ansible/requirements.yml'",
