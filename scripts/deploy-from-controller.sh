@@ -24,7 +24,7 @@ cat >"$COMMAND_FILE" <<EOF
     "if ! command -v ansible >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y git ansible python3-boto3 python3-botocore; fi",
     "if ! command -v session-manager-plugin >/dev/null 2>&1; then curl -fsSL https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb -o /tmp/session-manager-plugin.deb && sudo dpkg -i /tmp/session-manager-plugin.deb; fi",
     "sudo -u ubuntu bash -lc 'rm -rf ~/devops-bootcamp-project && git clone ${REPO_URL} ~/devops-bootcamp-project'",
-    "sudo -u ubuntu bash -lc 'cd ~/devops-bootcamp-project && ansible-galaxy install -r ansible/requirements.yml'",
+    "sudo -u ubuntu bash -lc 'cd ~/devops-bootcamp-project && ansible-galaxy install -r ansible/requirements.yml --force'",
     "sudo -u ubuntu bash -lc 'mkdir -p ~/devops-bootcamp-project/ansible/group_vars/all'",
     "sudo -u ubuntu bash -lc 'cat > ~/devops-bootcamp-project/ansible/group_vars/all/terraform_outputs.yml <<VARS\n---\necr_repository_url: \"${ECR_REPOSITORY_URL}\"\nansible_ssm_bucket: \"${ANSIBLE_SSM_BUCKET}\"\napp_image_tag: \"${APP_IMAGE_TAG}\"\nVARS'",
     "sudo -u ubuntu bash -lc 'cd ~/devops-bootcamp-project/ansible && ansible-playbook playbooks/site.yml'"
