@@ -42,6 +42,12 @@ After EC2 instances exist, test SSM connectivity:
 ./scripts/preflight-check.sh --name-tag devops-monitoring-server
 ```
 
+Run ad hoc SSM checks:
+
+```bash
+./scripts/ssm-run.sh <instance-id> "docker ps"
+```
+
 ## 2. Bootstrap Terraform State
 
 Create the remote state bucket and lock table:
