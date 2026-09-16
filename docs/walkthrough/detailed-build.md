@@ -900,7 +900,853 @@ Check:
   "ls -R /opt/grafana /opt/prometheus && docker ps"
 ```
 
-## 21. Cleanup
+## 21. Code Reference While Building
+
+This section shows the important code patterns used by the project. Do not treat these as random snippets. Each block maps to a rubric requirement and explains the logic you should understand while rebuilding.
+
+### Terraform Backend Code
+
+Purpose:
+
+- Store Terraform state in S3.
+- Lock concurrent Terraform runs with DynamoDB.
+- Protect the state bucket from public access.
+
+File:
+
+```text
+terraform/bootstrap/main.tf
+```
+
+Core code:
+
+```hcl
+locals {
+  backend_bucket = "devops-bootcamp-terraform-${var.project_suffix}"
+  lock_table     = "devops-bootcamp-terraform-lock-${var.project_suffix}"
+}
+
+resource "aws_s3_bucket" "terraform_state" {
+  bucket = local.backend_bucket
+}
+
+resource "aws_s3_bucket_public_access_block" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_versioning" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_dynamodb_table" "terraform_locks" {
+  name         = local.lock_table
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+}
+```
+
+Assessment logic:
+
+- S3 backend proves backend Terraform.
+- DynamoDB lock table proves safe collaborative Terraform use.
+- Public access block and encryption show state security awareness.
+
+### Terraform Provider And Remote State
+
+File:
+
+```text
+terraform/envs/prod/versions.tf
+```
+
+Core code:
+
+```hcl
+terraform {
+  required_version = ">= 1.6.0"
+
+  backend "s3" {
+    bucket         = "devops-bootcamp-terraform-hadiyahya"
+    key            = "prod/terraform.tfstate"
+    region         = "ap-southeast-1"
+    dynamodb_table = "devops-bootcamp-terraform-lock-hadiyahya"
+    encrypt        = true
+  }
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.0"
+    }
+  }
+}
+```
+
+Fundamental:
+
+Terraform backend configuration tells Terraform where state lives. The `key` separates the production state from any other future environments.
+
+### Terraform VPC And Subnets
+
+File:
+
+```text
+terraform/envs/prod/main.tf
+```
+
+Core code:
+
+```hcl
+resource "aws_vpc" "main" {
+  cidr_block           = "10.0.0.0/24"
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+
+  tags = merge(local.common_tags, {
+    Name = "devops-vpc"
+  })
+}
+
+resource "aws_subnet" "public" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.0.0/25"
+  availability_zone       = "${var.aws_region}a"
+  map_public_ip_on_launch = true
+}
+
+resource "aws_subnet" "private" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.0.128/25"
+  availability_zone = "${var.aws_region}a"
+}
+```
+
+Fundamental:
+
+- `10.0.0.0/24` gives 256 total IP addresses.
+- `10.0.0.0/25` is the public half.
+- `10.0.0.128/25` is the private half.
+- Public subnet maps public IPs on launch; private subnet does not.
+
+Assessment logic:
+
+This supports the VPC/networking marks and proves subnet separation.
+
+### Terraform Routes With One Elastic IP
+
+Core code:
+
+```hcl
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+}
+
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
+  }
+}
+
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block           = "0.0.0.0/0"
+    network_interface_id = aws_instance.web.primary_network_interface_id
+  }
+}
+```
+
+Fundamental:
+
+- Public subnet uses an Internet Gateway.
+- Private subnet has no direct IGW route.
+- Private outbound goes through the web instance network interface.
+
+Why this matters:
+
+Using a managed NAT Gateway would require another Elastic IP. This project intentionally uses the web instance as NAT to keep only one Elastic IP.
+
+### Terraform Security Groups
+
+Core code:
+
+```hcl
+resource "aws_security_group" "web" {
+  name   = "devops-public-sg"
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    description = "HTTP from internet"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description     = "node_exporter from monitoring"
+    from_port       = 9100
+    to_port         = 9100
+    protocol        = "tcp"
+    security_groups = [aws_security_group.private.id]
+  }
+
+  ingress {
+    description     = "NAT traffic from private servers"
+    from_port       = 0
+    to_port         = 0
+    protocol        = "-1"
+    security_groups = [aws_security_group.private.id]
+  }
+}
+
+resource "aws_security_group" "private" {
+  name   = "devops-private-sg"
+  vpc_id = aws_vpc.main.id
+}
+
+resource "aws_security_group_rule" "private_self_all" {
+  type                     = "ingress"
+  security_group_id        = aws_security_group.private.id
+  source_security_group_id = aws_security_group.private.id
+  from_port                = 0
+  to_port                  = 0
+  protocol                 = "-1"
+}
+```
+
+Assessment logic:
+
+- Web exposes HTTP publicly.
+- Private instances do not expose public inbound ports.
+- Monitoring can reach web metrics.
+- Private servers can communicate internally.
+
+### Terraform IAM Least Privilege Pattern
+
+Core code:
+
+```hcl
+data "aws_iam_policy_document" "ecr_read" {
+  statement {
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
+
+  statement {
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:DescribeImages",
+      "ecr:GetDownloadUrlForLayer"
+    ]
+    resources = [aws_ecr_repository.app.arn]
+  }
+}
+```
+
+Fundamental:
+
+Some AWS permissions cannot be resource-scoped. `ecr:GetAuthorizationToken` must use `*`, but image read actions can be scoped to the project repository.
+
+Assessment logic:
+
+This supports the IAM least-privilege bonus mark.
+
+### Terraform EC2 And Web NAT User Data
+
+Core code:
+
+```hcl
+locals {
+  web_user_data = <<-EOF
+    ${local.common_user_data}
+    sysctl -w net.ipv4.ip_forward=1
+    echo net.ipv4.ip_forward=1 > /etc/sysctl.d/99-devops-nat.conf
+    cat >/usr/local/sbin/devops-apply-nat.sh <<'SCRIPT'
+    #!/usr/bin/env bash
+    set -euo pipefail
+    sysctl -w net.ipv4.ip_forward=1
+    iptables -t nat -C POSTROUTING -s 10.0.0.128/25 -o ens5 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s 10.0.0.128/25 -o ens5 -j MASQUERADE
+    SCRIPT
+    chmod +x /usr/local/sbin/devops-apply-nat.sh
+    systemctl enable --now devops-nat.service
+  EOF
+}
+
+resource "aws_instance" "web" {
+  instance_type               = var.instance_type
+  subnet_id                   = aws_subnet.public.id
+  private_ip                  = "10.0.0.5"
+  user_data                   = local.web_user_data
+  associate_public_ip_address = true
+  source_dest_check           = false
+}
+```
+
+Fundamental:
+
+- `source_dest_check = false` allows the instance to forward traffic not destined for itself.
+- `ip_forward=1` allows Linux packet forwarding.
+- iptables `MASQUERADE` rewrites private-source traffic to the web instance outbound address.
+
+Assessment logic:
+
+This is the reason the project has one Elastic IP but private servers still have outbound internet.
+
+### Terraform ECR And Outputs
+
+Core code:
+
+```hcl
+resource "aws_ecr_repository" "app" {
+  name                 = "devops-bootcamp/final-project-${var.project_suffix}"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+output "ecr_repository_url" {
+  value = aws_ecr_repository.app.repository_url
+}
+
+output "web_public_ip" {
+  value = aws_eip.web.public_ip
+}
+```
+
+Fundamental:
+
+Outputs are the clean handoff between Terraform, Ansible, CI/CD, and documentation.
+
+### Dockerfile Code
+
+File:
+
+```text
+app/Dockerfile
+```
+
+Core code:
+
+```dockerfile
+FROM node:22-alpine AS build
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm test && npm run build
+
+FROM nginx:1.27-alpine
+
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1/ >/dev/null || exit 1
+```
+
+Fundamental:
+
+- Build dependencies stay in the Node stage.
+- Runtime uses Nginx only.
+- Tests run before the image is produced.
+- Healthcheck gives Docker a way to detect unhealthy app state.
+
+Assessment logic:
+
+This supports Docker, app-as-container, and image build marks.
+
+### Ansible Playbook Code
+
+File:
+
+```text
+ansible/playbooks/site.yml
+```
+
+Core code:
+
+```yaml
+---
+- name: Configure web server
+  hosts: role_web
+  become: true
+  roles:
+    - common
+    - geerlingguy.docker
+    - web_app
+
+- name: Configure controller metrics
+  hosts: role_controller
+  become: true
+  roles:
+    - common
+    - geerlingguy.docker
+    - node_exporter
+
+- name: Configure monitoring server
+  hosts: role_monitoring
+  become: true
+  roles:
+    - common
+    - geerlingguy.docker
+    - monitoring
+```
+
+Fundamental:
+
+Each play maps to an instance role. This makes the automation readable and assessment-friendly.
+
+### Ansible Web App Role Code
+
+File:
+
+```text
+ansible/roles/web_app/tasks/main.yml
+```
+
+Core code:
+
+```yaml
+---
+- name: Log in Docker to Amazon ECR
+  ansible.builtin.shell: |
+    set -euo pipefail
+    aws ecr get-login-password --region {{ aws_region }} |
+      docker login --username AWS --password-stdin {{ ecr_repository_url | regex_replace('/.*$', '') }}
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Run application container
+  community.docker.docker_container:
+    name: "{{ app_container_name }}"
+    image: "{{ ecr_repository_url }}:{{ app_image_tag }}"
+    pull: always
+    restart_policy: unless-stopped
+    published_ports:
+      - "{{ app_host_port }}:{{ app_container_port }}"
+
+- name: Run node_exporter container
+  community.docker.docker_container:
+    name: "{{ node_exporter_container_name }}"
+    image: quay.io/prometheus/node-exporter:v1.8.2
+    pull: true
+    restart_policy: unless-stopped
+    command:
+      - "--path.rootfs=/host"
+    pid_mode: host
+    published_ports:
+      - "{{ node_exporter_port }}:9100"
+    volumes:
+      - "/:/host:ro,rslave"
+```
+
+Fundamental:
+
+- ECR login is needed before pulling private images.
+- `docker_container` is idempotent.
+- node_exporter exposes host metrics on port `9100`.
+
+Assessment logic:
+
+This supports Ansible, Docker, container deployment, idempotency, and web metrics marks.
+
+### Ansible Monitoring Role Code
+
+File:
+
+```text
+ansible/roles/monitoring/tasks/main.yml
+```
+
+Core code:
+
+```yaml
+---
+- name: Render Prometheus configuration
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: "{{ prometheus_config_dir }}/prometheus.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart monitoring stack
+
+- name: Render Grafana Prometheus datasource
+  ansible.builtin.template:
+    src: grafana-datasource.yml.j2
+    dest: "{{ grafana_provisioning_dir }}/datasources/prometheus.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart monitoring stack
+
+- name: Render Grafana bootcamp nodes dashboard
+  ansible.builtin.template:
+    src: bootcamp-nodes-dashboard.json.j2
+    dest: "{{ grafana_dashboards_dir }}/bootcamp-nodes.json"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart monitoring stack
+
+- name: Start monitoring stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ prometheus_config_dir }}"
+    state: present
+```
+
+Fundamental:
+
+Templates make monitoring configuration reproducible. Hand-clicked Grafana dashboards are hard to rebuild; provisioned dashboards are code.
+
+### Prometheus Template Code
+
+File:
+
+```text
+ansible/roles/monitoring/templates/prometheus.yml.j2
+```
+
+Representative pattern:
+
+```yaml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
+
+  - job_name: node-exporter
+    static_configs:
+      - targets:
+          - "10.0.0.5:9100"
+        labels:
+          server: web
+      - targets:
+          - "10.0.0.135:9100"
+        labels:
+          server: controller
+```
+
+Fundamental:
+
+Prometheus scrape targets define where metrics come from. Labels make Grafana filtering possible.
+
+### Grafana Datasource Code
+
+File:
+
+```text
+ansible/roles/monitoring/templates/grafana-datasource.yml.j2
+```
+
+Representative pattern:
+
+```yaml
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+```
+
+Fundamental:
+
+Grafana needs a datasource before dashboards can query metrics. Provisioning prevents the "Grafana opens but has no Prometheus datasource" problem.
+
+### Docker Compose For Monitoring
+
+File:
+
+```text
+ansible/roles/monitoring/templates/docker-compose.yml.j2
+```
+
+Representative pattern:
+
+```yaml
+services:
+  prometheus:
+    image: prom/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    ports:
+      - "9090:9090"
+    volumes:
+      - "{{ prometheus_config_dir }}/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - "{{ grafana_provisioning_dir }}:/etc/grafana/provisioning:ro"
+      - "{{ grafana_dashboards_dir }}:/var/lib/grafana/dashboards:ro"
+```
+
+Fundamental:
+
+Prometheus and Grafana are deployed as containers, so the monitoring server stays consistent with the project container-first approach.
+
+### GitHub Actions: Terraform Plan Gate
+
+File:
+
+```text
+.github/workflows/terraform-plan.yml
+```
+
+Core code:
+
+```yaml
+name: Terraform Plan
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+  workflow_dispatch:
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform/envs/prod
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-1
+      - run: terraform fmt -check -recursive ../..
+      - run: terraform init
+      - run: terraform validate
+      - run: terraform plan -input=false
+```
+
+Assessment logic:
+
+This supports CI/CD format checking and the GitHub PR plan gate bonus.
+
+### GitHub Actions: Build And Push Image
+
+File:
+
+```text
+.github/workflows/docker-image.yml
+```
+
+Core code:
+
+```yaml
+name: Build And Push App Image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+  workflow_dispatch:
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-1
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - working-directory: app
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" -t "$REGISTRY/$ECR_REPOSITORY:latest" .
+          docker push "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker push "$REGISTRY/$ECR_REPOSITORY:latest"
+```
+
+Fundamental:
+
+CI builds the image from source and pushes to private ECR. This is more repeatable than building manually on the server.
+
+### GitHub Actions: Deploy Through SSM
+
+File:
+
+```text
+.github/workflows/deploy.yml
+```
+
+Representative pattern:
+
+```yaml
+- name: Run Ansible from controller through SSM
+  run: |
+    COMMAND_ID="$(aws ssm send-command \
+      --instance-ids "$CONTROLLER_INSTANCE_ID" \
+      --document-name AWS-RunShellScript \
+      --comment "Deploy devops bootcamp app and monitoring" \
+      --parameters file://commands.json \
+      --query Command.CommandId \
+      --output text)"
+
+    aws ssm wait command-executed \
+      --command-id "$COMMAND_ID" \
+      --instance-id "$CONTROLLER_INSTANCE_ID"
+```
+
+Fundamental:
+
+GitHub Actions does not SSH to the controller. It asks AWS SSM to run a command on the controller, then the controller performs the private Ansible deployment.
+
+Assessment logic:
+
+This supports CI/CD deployment and "Ansible without port 22".
+
+### SSM Helper Script Code
+
+File:
+
+```text
+scripts/ssm-run.sh
+```
+
+Representative pattern:
+
+```bash
+COMMAND_ID="$(aws ssm send-command \
+  --region "$AWS_REGION" \
+  --instance-ids "$INSTANCE_ID" \
+  --document-name AWS-RunShellScript \
+  --parameters "file://$PARAM_FILE" \
+  --query Command.CommandId \
+  --output text)"
+
+for _ in $(seq 1 120); do
+  STATUS="$(aws ssm get-command-invocation \
+    --region "$AWS_REGION" \
+    --command-id "$COMMAND_ID" \
+    --instance-id "$INSTANCE_ID" \
+    --query Status \
+    --output text)"
+
+  case "$STATUS" in
+    Success|Cancelled|TimedOut|Failed|Cancelling)
+      break
+      ;;
+  esac
+
+  sleep 2
+done
+```
+
+Fundamental:
+
+SSM commands are asynchronous. The script sends a command, polls until it finishes, then prints output. This pattern is useful for debugging private EC2 instances without SSH.
+
+### Preflight Script Logic
+
+File:
+
+```text
+scripts/preflight-check.sh
+```
+
+Representative logic:
+
+```bash
+check_tool git "git --version"
+check_tool gh "gh auth status"
+check_tool aws "aws --version"
+
+aws configure list
+aws configure get region
+aws sts get-caller-identity
+```
+
+Fundamental:
+
+Preflight checks should validate the operator environment before project work begins. This prevents spending time debugging Terraform when the actual problem is expired credentials.
+
+### Cloudflare Tunnel Config Logic
+
+Conceptual config:
+
+```yaml
+tunnel: hadiyahyalab-monitoring
+credentials-file: /etc/cloudflared/<tunnel-id>.json
+
+ingress:
+  - hostname: monitoring.hadiyahyalab.com
+    service: http://localhost:3000
+  - service: http_status:404
+```
+
+Fundamental:
+
+Cloudflare connects outward from the monitoring instance. Because the connection is outbound, Grafana does not need public inbound AWS security group rules.
+
+### Final Code Review Checklist
+
+Before assessment, review the code against these questions:
+
+- Does Terraform create the network, compute, IAM, ECR, and outputs?
+- Does Terraform use remote state?
+- Does the private route avoid a second Elastic IP?
+- Do private instances avoid public IPs?
+- Do security groups avoid public SSH?
+- Does Ansible use roles and idempotent modules?
+- Does the Dockerfile use multi-stage build?
+- Does CI push the image to ECR?
+- Does CI deploy through SSM/controller?
+- Does Prometheus scrape web and controller?
+- Does Grafana provision datasource and dashboard as code?
+- Does documentation explain URLs, architecture, and scoring remark?
+
+## 22. Cleanup
 
 Only clean up after assessment.
 
