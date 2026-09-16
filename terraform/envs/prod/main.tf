@@ -69,25 +69,6 @@ resource "aws_subnet" "private" {
   })
 }
 
-resource "aws_eip" "nat" {
-  domain = "vpc"
-
-  tags = merge(local.common_tags, {
-    Name = "devops-ngw-eip"
-  })
-}
-
-resource "aws_nat_gateway" "main" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public.id
-
-  tags = merge(local.common_tags, {
-    Name = "devops-ngw"
-  })
-
-  depends_on = [aws_internet_gateway.main]
-}
-
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -110,8 +91,8 @@ resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
   route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main.id
+    cidr_block           = "0.0.0.0/0"
+    network_interface_id = aws_instance.web.primary_network_interface_id
   }
 
   tags = merge(local.common_tags, {
@@ -145,6 +126,14 @@ resource "aws_security_group" "web" {
     security_groups = [aws_security_group.private.id]
   }
 
+  ingress {
+    description     = "NAT traffic from private servers"
+    from_port       = 0
+    to_port         = 0
+    protocol        = "-1"
+    security_groups = [aws_security_group.private.id]
+  }
+
   egress {
     description = "Outbound internet"
     from_port   = 0
@@ -164,7 +153,7 @@ resource "aws_security_group" "private" {
   vpc_id      = aws_vpc.main.id
 
   egress {
-    description = "Outbound through NAT"
+    description = "Outbound through web NAT instance"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -368,6 +357,35 @@ locals {
     ansible-galaxy collection install amazon.aws community.docker --force
     ansible-galaxy role install geerlingguy.docker --force
   EOF
+
+  web_user_data = <<-EOF
+    ${local.common_user_data}
+    sysctl -w net.ipv4.ip_forward=1
+    echo net.ipv4.ip_forward=1 > /etc/sysctl.d/99-devops-nat.conf
+    cat >/usr/local/sbin/devops-apply-nat.sh <<'SCRIPT'
+    #!/usr/bin/env bash
+    set -euo pipefail
+    sysctl -w net.ipv4.ip_forward=1
+    iptables -t nat -C POSTROUTING -s 10.0.0.128/25 -o ens5 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s 10.0.0.128/25 -o ens5 -j MASQUERADE
+    SCRIPT
+    chmod +x /usr/local/sbin/devops-apply-nat.sh
+    cat >/etc/systemd/system/devops-nat.service <<'UNIT'
+    [Unit]
+    Description=DevOps Bootcamp NAT for private subnet
+    After=network-online.target
+    Wants=network-online.target
+
+    [Service]
+    Type=oneshot
+    ExecStart=/usr/local/sbin/devops-apply-nat.sh
+    RemainAfterExit=yes
+
+    [Install]
+    WantedBy=multi-user.target
+    UNIT
+    systemctl daemon-reload
+    systemctl enable --now devops-nat.service
+  EOF
 }
 
 resource "aws_instance" "web" {
@@ -377,8 +395,9 @@ resource "aws_instance" "web" {
   private_ip                  = "10.0.0.5"
   vpc_security_group_ids      = [aws_security_group.web.id]
   iam_instance_profile        = aws_iam_instance_profile.web.name
-  user_data                   = local.common_user_data
+  user_data                   = local.web_user_data
   associate_public_ip_address = true
+  source_dest_check           = false
 
   root_block_device {
     volume_size = 12
