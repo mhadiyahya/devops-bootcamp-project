@@ -54,6 +54,40 @@
         mode: "0644"
       register: grafana_datasource
 
+    - name: Create Grafana dashboard provisioning directory
+      ansible.builtin.file:
+        path: "{{ grafana_dashboard_provisioning_directory }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Create Grafana dashboard directory
+      ansible.builtin.file:
+        path: "{{ grafana_dashboard_directory }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Deploy Grafana dashboard provider
+      ansible.builtin.template:
+        src: ../templates/grafana-dashboard-provider.yml.j2
+        dest: "{{ grafana_dashboard_provider_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+      register: grafana_dashboard_provider
+
+    - name: Deploy Node Exporter Full dashboard
+      ansible.builtin.copy:
+        src: ../files/grafana-dashboards/node-exporter-full.json
+        dest: "{{ grafana_node_exporter_dashboard_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+      register: grafana_node_exporter_dashboard
+
     - name: Ensure Grafana data volume exists
       community.docker.docker_volume:
         name: "{{ grafana_data_volume }}"
@@ -134,40 +168,6 @@
       delay: 5
       changed_when: false
       no_log: true
-
-    - name: Create Grafana dashboard provisioning directory
-      ansible.builtin.file:
-        path: "{{ grafana_dashboard_provisioning_directory }}"
-        state: directory
-        owner: root
-        group: root
-        mode: "0755"
-
-    - name: Create Grafana dashboard directory
-      ansible.builtin.file:
-        path: "{{ grafana_dashboard_directory }}"
-        state: directory
-        owner: root
-        group: root
-        mode: "0755"
-
-    - name: Deploy Grafana dashboard provider
-      ansible.builtin.template:
-        src: ../templates/grafana-dashboard-provider.yml.j2
-        dest: "{{ grafana_dashboard_provider_file }}"
-        owner: root
-        group: root
-        mode: "0644"
-      register: grafana_dashboard_provider
-
-    - name: Deploy Node Exporter Full dashboard
-      ansible.builtin.copy:
-        src: ../files/grafana-dashboards/node-exporter-full.json
-        dest: "{{ grafana_node_exporter_dashboard_file }}"
-        owner: root
-        group: root
-        mode: "0644"
-      register: grafana_node_exporter_dashboard
 
     - name: Verify Node Exporter Full dashboard is provisioned
       ansible.builtin.uri:
