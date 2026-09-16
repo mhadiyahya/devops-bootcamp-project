@@ -2,6 +2,8 @@
 
 Capture screenshots for these items before submission:
 
+The original final-project reference images are stored in `docs/images/final-project/`.
+
 - `scripts/preflight-check.sh` passing
 - Terraform backend bucket and lock table
 - Terraform production outputs

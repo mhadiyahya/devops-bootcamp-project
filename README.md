@@ -176,6 +176,8 @@ The `main` branch is protected with the Terraform workflow required as the pull 
 
 Add screenshots before final submission:
 
+The original final-project reference images are stored in `docs/images/final-project/`.
+
 - Preflight passing
 - Terraform outputs
 - VPC, subnets, route tables, web NAT instance route, Internet Gateway
