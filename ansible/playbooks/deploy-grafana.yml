@@ -1,0 +1,124 @@
+---
+- name: Deploy Grafana monitoring dashboard
+  hosts: monitoring_servers
+  become: true
+  gather_facts: false
+
+  vars_files:
+    - ../vault/grafana.yml
+
+  vars:
+    grafana_image: grafana/grafana:13.2.2
+    grafana_container_name: grafana
+    grafana_admin_user: admin
+    grafana_provisioning_directory: /opt/grafana/provisioning/datasources
+    grafana_datasource_file: /opt/grafana/provisioning/datasources/prometheus.yml
+    grafana_data_volume: grafana-data
+
+  tasks:
+    - name: Verify Grafana admin password is available
+      ansible.builtin.assert:
+        that:
+          - vault_grafana_admin_password is defined
+          - vault_grafana_admin_password | length >= 16
+        fail_msg: >-
+          Grafana admin password is missing or shorter than 16 characters.
+      no_log: true
+
+    - name: Verify Docker CLI is available
+      ansible.builtin.command:
+        argv:
+          - docker
+          - --version
+      changed_when: false
+
+    - name: Create Grafana data-source provisioning directory
+      ansible.builtin.file:
+        path: "{{ grafana_provisioning_directory }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Deploy Prometheus data-source configuration
+      ansible.builtin.template:
+        src: ../templates/grafana-datasource.yml.j2
+        dest: "{{ grafana_datasource_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+      register: grafana_datasource
+
+    - name: Ensure Grafana data volume exists
+      community.docker.docker_volume:
+        name: "{{ grafana_data_volume }}"
+        state: present
+
+    - name: Ensure Grafana container is running
+      community.docker.docker_container:
+        name: "{{ grafana_container_name }}"
+        image: "{{ grafana_image }}"
+        state: started
+        pull: missing
+        restart_policy: unless-stopped
+        network_mode: host
+        restart: "{{ grafana_datasource.changed }}"
+        volumes:
+          - "{{ grafana_data_volume }}:/var/lib/grafana"
+          - "{{ grafana_provisioning_directory }}:/etc/grafana/provisioning/datasources:ro"
+        env:
+          GF_SECURITY_ADMIN_USER: "{{ grafana_admin_user }}"
+          GF_SECURITY_ADMIN_PASSWORD: "{{ vault_grafana_admin_password }}"
+          GF_SERVER_HTTP_ADDR: "127.0.0.1"
+          GF_SERVER_HTTP_PORT: "3000"
+          GF_USERS_ALLOW_SIGN_UP: "false"
+          GF_AUTH_ANONYMOUS_ENABLED: "false"
+          GF_ANALYTICS_REPORTING_ENABLED: "false"
+          GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+        log_driver: json-file
+        log_options:
+          max-size: "10m"
+          max-file: "3"
+      no_log: true
+
+    - name: Wait for Grafana health endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:3000/api/health
+        method: GET
+        status_code: 200
+        return_content: true
+      register: grafana_health
+      until:
+        - grafana_health.status == 200
+        - grafana_health.json.database == "ok"
+      retries: 18
+      delay: 5
+      changed_when: false
+
+    - name: Verify Prometheus data source is provisioned
+      ansible.builtin.uri:
+        url: http://127.0.0.1:3000/api/datasources/uid/prometheus
+        method: GET
+        user: "{{ grafana_admin_user }}"
+        password: "{{ vault_grafana_admin_password }}"
+        force_basic_auth: true
+        status_code: 200
+        return_content: false
+      changed_when: false
+      no_log: true
+
+    - name: Verify Grafana can reach Prometheus
+      ansible.builtin.uri:
+        url: http://127.0.0.1:3000/api/datasources/uid/prometheus/health
+        method: GET
+        user: "{{ grafana_admin_user }}"
+        password: "{{ vault_grafana_admin_password }}"
+        force_basic_auth: true
+        status_code: 200
+        return_content: false
+      register: grafana_prometheus_health
+      until: grafana_prometheus_health.status == 200
+      retries: 6
+      delay: 5
+      changed_when: false
+      no_log: true
