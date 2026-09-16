@@ -7,7 +7,7 @@ Capture screenshots for these items before submission:
 - Terraform production outputs
 - VPC `devops-vpc`
 - Public and private subnets
-- Internet Gateway and NAT Gateway
+- Internet Gateway and private route through the web NAT instance
 - Public and private route tables
 - EC2 instances:
   - `devops-web-server`

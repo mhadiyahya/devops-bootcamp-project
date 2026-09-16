@@ -257,14 +257,18 @@ resource "aws_iam_role_policy_attachment" "ssm_core" {
 
 data "aws_iam_policy_document" "ecr_read" {
   statement {
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
+
+  statement {
     actions = [
       "ecr:BatchCheckLayerAvailability",
       "ecr:BatchGetImage",
       "ecr:DescribeImages",
-      "ecr:GetAuthorizationToken",
       "ecr:GetDownloadUrlForLayer"
     ]
-    resources = ["*"]
+    resources = [aws_ecr_repository.app.arn]
   }
 }
 
@@ -272,14 +276,33 @@ data "aws_iam_policy_document" "controller_ssm_ansible" {
   statement {
     actions = [
       "ssm:DescribeInstanceInformation",
-      "ssm:StartSession",
-      "ssm:TerminateSession",
-      "ssm:ResumeSession",
-      "ssm:SendCommand",
       "ssm:GetCommandInvocation",
       "ec2:DescribeInstances"
     ]
     resources = ["*"]
+  }
+
+  statement {
+    actions = [
+      "ssm:StartSession",
+      "ssm:SendCommand"
+    ]
+    resources = [
+      "arn:aws:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:instance/${aws_instance.web.id}",
+      "arn:aws:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:instance/${aws_instance.controller.id}",
+      "arn:aws:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:instance/${aws_instance.monitoring.id}",
+      "arn:aws:ssm:${var.aws_region}::document/AWS-RunShellScript",
+      "arn:aws:ssm:${var.aws_region}::document/AWS-StartSSHSession",
+      "arn:aws:ssm:${var.aws_region}::document/SSM-SessionManagerRunShell"
+    ]
+  }
+
+  statement {
+    actions = [
+      "ssm:TerminateSession",
+      "ssm:ResumeSession"
+    ]
+    resources = ["arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:session/*"]
   }
 
   statement {

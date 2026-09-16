@@ -24,7 +24,7 @@ The project provisions a single AWS VPC named `devops-vpc` with CIDR `10.0.0.0/2
 | Controller | Private `10.0.0.128/25` | `10.0.0.135` | Runs Ansible configuration |
 | Monitoring | Private `10.0.0.128/25` | `10.0.0.136` | Prometheus and Grafana |
 
-Access is SSM-first. Private instances do not require inbound SSH.
+Access is SSM-first. Private instances do not require inbound SSH. To keep the project to one Elastic IP, the web server also acts as the NAT instance for private outbound traffic.
 
 ## 1. Preflight
 
@@ -170,13 +170,15 @@ Expected documentation URL:
 https://hadiyahyalab.com
 ```
 
+The `main` branch is protected with the Terraform workflow required as the pull request plan gate.
+
 ## Evidence Checklist
 
 Add screenshots before final submission:
 
 - Preflight passing
 - Terraform outputs
-- VPC, subnets, route tables, NAT Gateway, Internet Gateway
+- VPC, subnets, route tables, web NAT instance route, Internet Gateway
 - EC2 instances with expected private IPs
 - SSM managed instances
 - ECR image pushed
