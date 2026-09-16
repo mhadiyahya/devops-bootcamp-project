@@ -16,6 +16,8 @@ services:
       - "{{ grafana_port }}:3000"
     volumes:
       - "{{ grafana_data_volume }}:/var/lib/grafana"
+      - "{{ grafana_provisioning_dir }}:/etc/grafana/provisioning:ro"
+      - "{{ grafana_dashboards_dir }}:/var/lib/grafana/dashboards:ro"
 
 volumes:
   {{ grafana_data_volume }}:

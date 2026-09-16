@@ -2,5 +2,8 @@
 prometheus_port: 9090
 grafana_port: 3000
 prometheus_config_dir: /opt/prometheus
+grafana_provisioning_dir: /opt/grafana/provisioning
+grafana_dashboards_dir: /opt/grafana/dashboards
 grafana_data_volume: grafana-data
 web_node_exporter_target: 10.0.0.5:9100
+controller_node_exporter_target: 10.0.0.135:9100

@@ -1,0 +1,14 @@
+---
+- name: Run node_exporter container
+  community.docker.docker_container:
+    name: "{{ node_exporter_container_name }}"
+    image: quay.io/prometheus/node-exporter:v1.8.2
+    pull: true
+    restart_policy: unless-stopped
+    command:
+      - "--path.rootfs=/host"
+    pid_mode: host
+    published_ports:
+      - "{{ node_exporter_port }}:9100"
+    volumes:
+      - "/:/host:ro,rslave"

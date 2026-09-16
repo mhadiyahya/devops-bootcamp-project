@@ -7,6 +7,14 @@
     - geerlingguy.docker
     - web_app
 
+- name: Configure controller metrics
+  hosts: role_controller
+  become: true
+  roles:
+    - common
+    - geerlingguy.docker
+    - node_exporter
+
 - name: Configure monitoring server
   hosts: role_monitoring
   become: true
