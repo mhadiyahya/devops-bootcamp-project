@@ -189,6 +189,8 @@ Add screenshots before final submission:
 - Cloudflare Tunnel route for monitoring
 - GitHub Pages documentation
 
+For a full rebuild guide, see [`docs/walkthrough/README.md`](docs/walkthrough/README.md).
+
 ## Cleanup
 
 To avoid ongoing AWS cost after assessment:
